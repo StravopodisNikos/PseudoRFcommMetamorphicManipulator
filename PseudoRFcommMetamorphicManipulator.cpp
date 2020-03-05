@@ -31,17 +31,17 @@ PseudoRFcommMetamorphicManipulator::PseudoRFcommMetamorphicManipulator(RF24 RADI
 bool PseudoRFcommMetamorphicManipulator::setTxMaster(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] )
 {
 	// When MASTER is Tx it uses one adress to write to each pseudo, the remaining 5 are used for reading(I can read from up to 5 pseudos at the same time)
+	OBJECT.stopListening();											// calls before openWritingPipe when needs to change pipe address
 
-	// writing/reading address
-	const byte *writeAdress = pseudoAddresses[radioPseudoNumber-1];
-	const byte *read1Adress = pseudoAddresses[radioPseudoNumber];
+	const byte *writeAdress = pseudoAddresses[radioPseudoNumber-1]; // set the pipe address depending on which pseudo we write
+	//const byte *read1Adress = pseudoAddresses[radioPseudoNumber]; // will be removed
 
 	OBJECT.openWritingPipe(writeAdress);    						// MASTER WRITES TO THIS PIPE TO PSEUDO1
-	OBJECT.openReadingPipe(radioPseudoNumber,read1Adress);			// MASTER READS FROM THIS PIPE FROM PSEUDO1
+	//OBJECT.openReadingPipe(radioPseudoNumber,read1Adress);		// will be removed
 
-	OBJECT.stopListening();
+	OBJECT.stopListening();											// stops listening in order to write
 
-	enum Mode setSlaveMode = Rx;											// Slave MUST be informed that becomes Rx!
+	enum Mode setSlaveMode = Rx;									// Slave MUST be informed that becomes Rx!
 
 	return_write_attempt = OBJECT.write(&setSlaveMode,sizeof(setSlaveMode));
 	if(return_write_attempt == false){
@@ -55,43 +55,152 @@ bool PseudoRFcommMetamorphicManipulator::setTxMaster(RF24 OBJECT, uint8_t radioP
 
 	return result;
 }
-/*
+
+// =========================================================================================================== //
+
 bool PseudoRFcommMetamorphicManipulator::setRxMaster(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] )
 {
-	// When MASTER is Rx it must WRITE to Pseudo that it is Listening 
+	// 1. When MASTER is Rx it must WRITE to Pseudo first the mode change 
+	const byte *writeAdress = pseudoAddresses[radioPseudoNumber-1];
+	
+	OBJECT.stopListening();
+	
+	OBJECT.openWritingPipe(writeAdress);    						// MASTER WRITES TO THIS PIPE TO PSEUDO1
+	
+	OBJECT.stopListening();
 
-	const byte *readAdress = pseudoAddresses[radioPseudoNumber-1];
+	enum Mode setSlaveMode = Tx;									// Slave MUST be informed that becomes Tx!
 
-	// reading from address
-	OBJECT.openReadingPipe(radioPseudoNumber,readAdress);			// MASTER READS FROM THIS PIPE FROM PSEUDO defined by radioPseudoNumber
+	do
+	{
+		return_write_attempt = OBJECT.write(&setSlaveMode,sizeof(setSlaveMode));
+		if(return_write_attempt == false)
+		{
+			Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Tx Mode to SLAVE: FAILED");
+			continue_exec = false;
+		}
+		else
+		{
+			Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Tx Mode to SLAVE: SUCCESS");
+			continue_exec = true;
+		}
+
+	} while (!continue_exec);
+
+	if(continue_exec)
+	{
+		// 2. Now, waits for slave(Tx) response
+		const byte *read1Adress = pseudoAddresses[radioPseudoNumber-1];	// Uses the same address for reading!
+		// reading from address
+		OBJECT.openReadingPipe(radioPseudoNumber,read1Adress);			// MASTER READS FROM THE PIPE USING THE PSEUDO: FIXED ADRESS
+
+		OBJECT.startListening();
+
+		do{
+			if(OBJECT.available()){
+			
+				while (OBJECT.available()) {                          
+					OBJECT.read( &masterMode, sizeof(masterMode) );       
+				}     
+				
+				if(masterMode == Rx)
+				{
+					//Serial.println("[ MASTER ] WRITE Rx Mode to MASTER: SUCCESS");
+					result = true;
+				}
+				else
+				{
+					//Serial.println("[ MASTER ] WRITE Rx Mode to MASTER: FAILED"); 
+					result = false;
+				}
+			}
+		}while(!result);
+	}
+	else
+	{
+		result = false;
+	}
+
+	// 3. If it gets a response returns TRUE
+	return result;
+}
+
+// =========================================================================================================== //
+
+bool PseudoRFcommMetamorphicManipulator::setTxSlave(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] )
+{
+	// 1.  When SLAVE is Tx it must first READ from MASTER the mode change
+	const byte *read1Adress = pseudoAddresses[radioPseudoNumber-1];
+
+	OBJECT.openReadingPipe(radioPseudoNumber,read1Adress);			// PSEUDO1 READS FROM THIS PIPE FROM MASTER
 
 	OBJECT.startListening();
 
-	bool setTxSlave = true;											// Slave becomes Tx
+	do
+	{
+		if(OBJECT.available()){
 
-	return_write_attempt = OBJECT.write(&setRxSlave,sizeof(setRxSlave));
-	if(return_write_attempt == false){
-		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Rx Mode FAILED");
+			while (OBJECT.available()) {                          
+			OBJECT.read( &slaveMode, sizeof(slaveMode) );       
+			}     
+			
+			if(slaveMode == Tx)
+			{
+				Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Tx MODE from MASTER: SUCCESS");
+				continue_exec = true;
+			}
+			else
+			{
+				Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Tx MODE from MASTER: FAILED"); 
+				continue_exec = false;
+			}
+
+		}
+	} while (!continue_exec);
+
+
+	if(continue_exec)
+	{
+		// 2. Now, reply to master(Rx)
+		const byte *writeAdress = pseudoAddresses[radioPseudoNumber-1];
+		
+		OBJECT.stopListening();
+		
+		OBJECT.openWritingPipe(writeAdress);    						// MASTER WRITES TO THIS PIPE TO PSEUDO1
+		
+		OBJECT.stopListening();
+
+		enum Mode setMasterMode = Rx;									// Master MUST be informed that becomes Rx!
+
+		do{
+			return_write_attempt = OBJECT.write(&setMasterMode,sizeof(setMasterMode));
+			if(return_write_attempt == false){
+				//Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Rx Mode to MASTER FAILED");
+				result = false;
+			}
+			else{
+				//Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Rx Mode to MASTER SUCCESS");
+				result = true;
+			}
+		}while(!result);
+	}
+	else
+	{
 		result = false;
 	}
-	else{
-		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Rx Mode SUCCESS");
-		result = true;
-	}
 
-	return result;
+  	// 3. If it gets a response returns TRUE
+  	return result;
 }
-*/
 
 // =========================================================================================================== //
 
 bool PseudoRFcommMetamorphicManipulator::setRxSlave(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] )
 {
-	// writing/reading address
-	const byte *writeAdress = pseudoAddresses[radioPseudoNumber];
+	//const byte *writeAdress = pseudoAddresses[radioPseudoNumber];
 	const byte *read1Adress = pseudoAddresses[radioPseudoNumber-1];
 
-	OBJECT.openWritingPipe(writeAdress);    						// PSEUDO1 WRITES TO THIS PIPE TO MASTER
+	//OBJECT.openWritingPipe(writeAdress);    						// PSEUDO1 WRITES TO THIS PIPE TO MASTER
 	OBJECT.openReadingPipe(radioPseudoNumber,read1Adress);			// PSEUDO1 READS FROM THIS PIPE FROM MASTER
 
 	OBJECT.startListening();
@@ -106,13 +215,13 @@ bool PseudoRFcommMetamorphicManipulator::setRxSlave(RF24 OBJECT, uint8_t radioPs
 	
 	if(slaveMode == Rx)
 	{
-	Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] MODE: Rx");
+	Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Rx MODE from MASTER: SUCCESS");
 	
 	result = true;
 	}
 	else
 	{
-	Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] MODE: FAILED"); 
+	Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Rx MODE from MASTER: FAILED"); 
 	result = false;
 	}
   }
@@ -122,11 +231,14 @@ bool PseudoRFcommMetamorphicManipulator::setRxSlave(RF24 OBJECT, uint8_t radioPs
 
 // =========================================================================================================== //
 
-bool PseudoRFcommMetamorphicManipulator::writePseudoStatePacket(RF24 TALKER, uint8_t radioPseudoNumber, char *pseudoAddress, int pseudoState)
+bool PseudoRFcommMetamorphicManipulator::writePseudoStatePacket(RF24 TALKER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] , int pseudoState)
 {
 	struct pseudoStateDataStruct PSEUDO_STATE_STRUCT;
 	
-	TALKER.openWritingPipe(&pseudoAddress);
+	const byte *writeAdress = pseudoAddresses[radioPseudoNumber-1];
+	TALKER.stopListening();
+
+	TALKER.openWritingPipe(writeAdress);
 
 	TALKER.stopListening();
 
@@ -137,25 +249,27 @@ bool PseudoRFcommMetamorphicManipulator::writePseudoStatePacket(RF24 TALKER, uin
 	return_write_attempt = TALKER.write(&PSEUDO_STATE_STRUCT,sizeof(PSEUDO_STATE_STRUCT));
 
 	if(return_write_attempt == false){
-		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE STATE FAILED");
+		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE STATE: FAILED");
 		result = false;
 	}
 	else{
-		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE STATE SUCCESS");
+		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE STATE: SUCCESS");
 		result = true;
 	}
 
-	TALKER.startListening();
+	//TALKER.startListening();
   	return result;
 }
 
 // =========================================================================================================== //
 
-bool PseudoRFcommMetamorphicManipulator::readPseudoStatePacket(RF24 LISTENER, uint8_t radioPseudoNumber, char *pseudoAddress)
+bool PseudoRFcommMetamorphicManipulator::readPseudoStatePacket(RF24 LISTENER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] )
 {
 	struct pseudoStateDataStruct PSEUDO_STATE_STRUCT;
 	
-	LISTENER.openReadingPipe(radioPseudoNumber,&pseudoAddress);
+	const byte *read1Adress = pseudoAddresses[radioPseudoNumber-1];
+
+	LISTENER.openReadingPipe(radioPseudoNumber,read1Adress);
 	
 	LISTENER.startListening();
 	
@@ -166,7 +280,7 @@ bool PseudoRFcommMetamorphicManipulator::readPseudoStatePacket(RF24 LISTENER, ui
 			LISTENER.read(&PSEUDO_STATE_STRUCT, sizeof(PSEUDO_STATE_STRUCT)); //
 	    	}
 
-	  	Serial.print("[ PSEUDO: "); Serial.print(PSEUDO_STATE_STRUCT._pseudoID); Serial.println(" ]");
+	  	Serial.print("[ PSEUDO: "); Serial.print(PSEUDO_STATE_STRUCT._pseudoID); Serial.print(" ]");
 	  	
 	  	switch(PSEUDO_STATE_STRUCT.pseudoState){
 	  	case  STATE_LOCKED:
@@ -183,7 +297,7 @@ bool PseudoRFcommMetamorphicManipulator::readPseudoStatePacket(RF24 LISTENER, ui
   	}
   	else
   	{
-  		Serial.print("[ PSEUDO: "); Serial.print(PSEUDO_STATE_STRUCT._pseudoID); Serial.print(" ]"); Serial.println("STATE READ FAILED");
+  		Serial.print("[ PSEUDO: "); Serial.print(PSEUDO_STATE_STRUCT._pseudoID); Serial.print(" ]"); Serial.println("STATE READ: FAILED");
   		result = false;
   	}
 
@@ -195,11 +309,13 @@ bool PseudoRFcommMetamorphicManipulator::readPseudoStatePacket(RF24 LISTENER, ui
 
 // =========================================================================================================== //
 
-bool PseudoRFcommMetamorphicManipulator::writeCommandPseudoPacket(RF24 TALKER, uint8_t radioPseudoNumber, char *pseudoAddress, int command_code)
+bool PseudoRFcommMetamorphicManipulator::writeCommandPseudoPacket(RF24 TALKER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] , int command_code)
 {
 	struct pseudoCommandDataStruct PSEUDO_COMMAND_STRUCT;
 	
-	TALKER.openWritingPipe(&pseudoAddress);
+	const byte *writeAdress = pseudoAddresses[radioPseudoNumber-1];
+
+	TALKER.openWritingPipe(writeAdress);
 
 	TALKER.stopListening();
 
@@ -210,11 +326,11 @@ bool PseudoRFcommMetamorphicManipulator::writeCommandPseudoPacket(RF24 TALKER, u
 	return_write_attempt = TALKER.write(&PSEUDO_COMMAND_STRUCT,sizeof(PSEUDO_COMMAND_STRUCT));
 
 	if(return_write_attempt == false){
-		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE COMMAND FAILED");
+		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE COMMAND: FAILED");
 		result = false;
 	}
 	else{
-		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE COMMAND SUCCESS");
+		Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE COMMAND: SUCCESS");
 		result = true;
 	}
 
@@ -225,11 +341,13 @@ bool PseudoRFcommMetamorphicManipulator::writeCommandPseudoPacket(RF24 TALKER, u
 
 // =========================================================================================================== //
 
-bool PseudoRFcommMetamorphicManipulator::readCommandPseudoPacket(RF24 LISTENER, uint8_t radioPseudoNumber, char *pseudoAddress)
+bool PseudoRFcommMetamorphicManipulator::readCommandPseudoPacket(RF24 LISTENER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] )
 {
 	struct pseudoCommandDataStruct PSEUDO_COMMAND_STRUCT;
 	
-	LISTENER.openReadingPipe(radioPseudoNumber,&pseudoAddress);
+	const byte *read1Adress = pseudoAddresses[radioPseudoNumber-1];
+
+	LISTENER.openReadingPipe(radioPseudoNumber,read1Adress);
 	
 	LISTENER.startListening();
 	
@@ -279,7 +397,7 @@ bool PseudoRFcommMetamorphicManipulator::readCommandPseudoPacket(RF24 LISTENER, 
   	}
   	else
   	{
-  		Serial.print("[ PSEUDO: "); Serial.print(PSEUDO_COMMAND_STRUCT._pseudoID); Serial.print(" ]"); Serial.println(" COMMAND READ FAILED");
+  		Serial.print("[ PSEUDO: "); Serial.print(PSEUDO_COMMAND_STRUCT._pseudoID); Serial.print(" ]"); Serial.println(" COMMAND READ: FAILED");
   		result = false;
   	}	
   	

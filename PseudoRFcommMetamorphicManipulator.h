@@ -38,6 +38,7 @@
 extern bool return_write_attempt;
 extern bool return_read_attempt;
 extern bool result;
+extern bool continue_exec;
 
 const char STATE_LOCKED_STRING[] = "LOCKED";
 const char STATE_UNLOCKED_STRING[] = "UNLOCKED";
@@ -87,17 +88,21 @@ class PseudoRFcommMetamorphicManipulator
 	bool setTxMaster(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] );
 	bool setRxSlave(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] );
 
+	// sets MASTER to Rx mode and SLAVE to Tx mode
+	bool setRxMaster(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] );
+	bool setTxSlave(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] );
+
 	// Sends data
-	bool writePseudoStatePacket(RF24 TALKER, uint8_t radioPseudoNumber, char *pseudoAddress, int pseudoState);
+	bool writePseudoStatePacket(RF24 TALKER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] , int pseudoState);
 	
 	// Gets data
-	bool readPseudoStatePacket(RF24 LISTENER, uint8_t radioPseudoNumber, char *pseudoAddress);
+	bool readPseudoStatePacket(RF24 LISTENER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] );
 	
 	// send command
-	bool writeCommandPseudoPacket(RF24 TALKER, uint8_t radioPseudoNumber, char *pseudoAddress, int command_code);
+	bool writeCommandPseudoPacket(RF24 TALKER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] , int command_code);
 	
 	// read command
-	bool readCommandPseudoPacket(RF24 LISTENER, uint8_t radioPseudoNumber, char *pseudoAddress);
+	bool readCommandPseudoPacket(RF24 LISTENER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] );
 
 	private:
 	int _pseudoID;
