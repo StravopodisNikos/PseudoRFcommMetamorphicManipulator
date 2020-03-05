@@ -76,12 +76,12 @@ bool PseudoRFcommMetamorphicManipulator::setRxMaster(RF24 OBJECT, uint8_t radioP
 		return_write_attempt = OBJECT.write(&setSlaveMode,sizeof(setSlaveMode));
 		if(return_write_attempt == false)
 		{
-			Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Tx Mode to SLAVE: FAILED");
+			//Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Tx Mode to SLAVE: FAILED");
 			continue_exec = false;
 		}
 		else
 		{
-			Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Tx Mode to SLAVE: SUCCESS");
+			//Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Tx Mode to SLAVE: SUCCESS");
 			continue_exec = true;
 		}
 
@@ -146,12 +146,12 @@ bool PseudoRFcommMetamorphicManipulator::setTxSlave(RF24 OBJECT, uint8_t radioPs
 			
 			if(slaveMode == Tx)
 			{
-				Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Tx MODE from MASTER: SUCCESS");
+				//Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Tx MODE from MASTER: SUCCESS");
 				continue_exec = true;
 			}
 			else
 			{
-				Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Tx MODE from MASTER: FAILED"); 
+				//Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Tx MODE from MASTER: FAILED"); 
 				continue_exec = false;
 			}
 
@@ -315,6 +315,8 @@ bool PseudoRFcommMetamorphicManipulator::writeCommandPseudoPacket(RF24 TALKER, u
 	
 	const byte *writeAdress = pseudoAddresses[radioPseudoNumber-1];
 
+	TALKER.stopListening();
+	
 	TALKER.openWritingPipe(writeAdress);
 
 	TALKER.stopListening();

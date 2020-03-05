@@ -15,12 +15,13 @@
 #define PSEUDO6_MASTER 	5
 
 #define ADDRESS_WIDTH		6
-#define STATE_LOCKED 	  1
-#define STATE_UNLOCKED 	11
+
+#define STATE_LOCKED 	  	1
+#define STATE_UNLOCKED 		11
 #define CMD_LOCK		    2
-#define CMD_UNLOCK	    22
-#define CMD_SGP	  3	// Calls pseudojoint to set goal position
-#define CMD_HOME	4
+#define CMD_UNLOCK	    	22
+#define CMD_SGP	  			3	// Calls pseudojoint to set goal position
+#define CMD_HOME			4
 
 #define PSEUDO_NUMBER1 	1
 #define PSEUDO_NUMBER2	2
@@ -39,14 +40,15 @@ extern bool return_write_attempt;
 extern bool return_read_attempt;
 extern bool result;
 extern bool continue_exec;
+extern bool return_function_state;
 
-const char STATE_LOCKED_STRING[] = "LOCKED";
-const char STATE_UNLOCKED_STRING[] = "UNLOCKED";
-const char COMMAND_LOCK_STRING[] = "LOCK";
-const char COMMAND_UNLOCK_STRING[] = "UNLOCK";
-const char COMMAND_SGP_STRING[] = "SET GOAL POSITION";
-const char COMMAND_HOME_STRING[] = "HOME";
-const char MOVING[]= "MOVING";
+const char STATE_LOCKED_STRING[] 	= "LOCKED";
+const char STATE_UNLOCKED_STRING[] 	= "UNLOCKED";
+const char COMMAND_LOCK_STRING[] 	= "LOCK";
+const char COMMAND_UNLOCK_STRING[] 	= "UNLOCK";
+const char COMMAND_SGP_STRING[] 	= "SET GOAL POSITION";
+const char COMMAND_HOME_STRING[] 	= "HOME";
+const char MOVING[]					= "MOVING";
 
 enum Mode{Tx, Rx}; 
 
@@ -55,9 +57,6 @@ extern enum Mode masterMode;
 
 typedef const byte typeAddresses[ADDRESS_WIDTH]; 
 typeAddresses pseudoAddresses[] = {"1PMAd", "2PMAd"};
-
-
-#define STATE_LOCKED 	  1
 
 class PseudoRFcommMetamorphicManipulator
 {
