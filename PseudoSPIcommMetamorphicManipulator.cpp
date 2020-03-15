@@ -12,12 +12,17 @@
 
 // For RF PseudoCommunication
 #include <SPI.h>
+#include <EEPROM.h>
 #include <RF24.h>
 #include <nRF24L01.h>
 #include <RF24_config.h>
 
 // Addresses
 typedef const byte typeAddresses[ADDRESS_WIDTH]; 
+
+/*
+ *  FUNCTIONS FOR PseudoRFcommMetamorphicManipulator CLASS
+ */
 
 // Constructor
 PseudoRFcommMetamorphicManipulator::PseudoRFcommMetamorphicManipulator(RF24 RADIO, int pseudoID, int csnPin, int cePin, int misoPin, int mosiPin, int txLedPin, int rxLedPin)
@@ -520,5 +525,335 @@ bool PseudoRFcommMetamorphicManipulator::execTxRxBlockMaster(RF24 OBJECT, uint8_
 
 
 } // END FUNCTION
+
+// =========================================================================================================== //
+
+/*
+ *  FUNCTIONS FOR PseudoSPIcommMetamorphicManipulator CLASS
+ */
+
+PseudoSPIcommMetamorphicManipulator::PseudoSPIcommMetamorphicManipulator(enum Mode mode, int pseudoID, int mosiPin, int misoPin, int sckPin, int txLedPin, int rxLedPin, int ssPins[]){
+
+// Construct MASTER/SLAVE object => sets the corresponding pin modes
+if (mode == Tx)
+{
+	pinMode(sckPin, OUTPUT);
+
+	pinMode(mosiPin, OUTPUT);
+	pinMode(misoPin, INPUT);
+
+	for (size_t i = 0; i < sizeof(ssPins); i++)
+	{
+		pinMode(ssPins[i], OUTPUT);
+	}
+}
+
+if (mode == Rx)
+{
+	pinMode(sckPin, !OUTPUT);
+
+	pinMode(mosiPin, !OUTPUT);
+	pinMode(misoPin, !INPUT);
+
+	for (size_t i = 0; i < sizeof(ssPins); i++)
+	{
+		pinMode(ssPins[i], !OUTPUT);
+	}
+}
+
+	// LEDS ARE OFF @ construction
+	pinMode(txLedPin,OUTPUT);
+	pinMode(rxLedPin,OUTPUT);
+	digitalWrite(txLedPin,LOW);
+	digitalWrite(rxLedPin,LOW);
+
+	_pseudoID = pseudoID;
+	_mosiPin  = mosiPin;
+	_misoPin  = misoPin;
+	_sckPin   = sckPin;
+
+	_txLedPin = txLedPin;
+	_rxLedPin = rxLedPin;
+
+}
+
+// =========================================================================================================== //
+
+void PseudoSPIcommMetamorphicManipulator::constructPacket(aliasPacketReceived *PACKET, int pseudoID, int command_code){
+  PACKET->micros_talked    = micros();
+  PACKET->pseudoID_talked  = pseudoID;
+  PACKET->command_state    = command_code;
+}
+
+// =========================================================================================================== //
+
+void PseudoSPIcommMetamorphicManipulator::constructEptyPacket(aliasPacketReceived *PACKET){
+    PACKET->micros_talked    = 0;
+    PACKET->pseudoID_talked  = 0;
+    PACKET->command_state    = 0;
+}
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::executeTxRxMasterBlock(aliasPacketReceived PACKET, int pseudoID , int ssPins[]){
+
+  aliasPacketReceivedUnion PACKET_UNION;
+
+  PACKET_UNION.packet_received = PACKET;
+
+  digitalWrite(ssPins[pseudoID-1], LOW);              // enable Slave Select
+
+  for (size_t index_count = 0; index_count < sizeof(packets); index_count++)
+  {
+      SPI.transfer(PACKET_UNION.bytes[index_count]);
+	  Serial.print(PACKET_UNION.bytes[index_count]);
+  }
+
+  // End Write byte command
+  delay(50);
+  Serial.println("");
+  Serial.print("receive time   ="); Serial.println(PACKET.micros_talked);
+  Serial.print("pseudo talked  ="); Serial.println(PACKET.pseudoID_talked);
+  Serial.print("motor state    ="); Serial.println(PACKET.command_state);
+
+  digitalWrite(ssPins[pseudoID-1], HIGH);             // disable Slave Select
+
+  return true;
+}
+
+// =========================================================================================================== //
+
+byte PseudoSPIcommMetamorphicManipulator::singleByteTransfer(byte packet, unsigned long wait_for_response)
+{	
+	time_now_micros = micros();
+
+	byte packet_received = SPI.transfer(packet);
+	while(micros() < time_now_micros + wait_for_response){}
+
+	return packet_received;
+}
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::connectPseudoMaster(int pseudoID, int ssPins[])
+{
+	/*
+	 *  Checks 1 time only for the ID of the pseudo connected in the ssPin specified
+	 */
+
+	byte receivedID;
+	unsigned long eeprom_read_time_micros = 4000;  		// 4ms (4000μs) for read 
+
+	digitalWrite(ssPins[pseudoID-1], LOW);				// enable Pseudo Slave Select pin
+
+	receivedID = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_CONNECT, eeprom_read_time_micros);
+
+	digitalWrite(ssPins[pseudoID-1], HIGH);				// disable Pseudo Slave Select pin
+
+	if( pseudoID == (int) receivedID)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+	
+} // END FUNCTION: connectPseudoMaster
+
+// =========================================================================================================== //
+
+byte PseudoSPIcommMetamorphicManipulator::connectPseudoSlave()
+{
+	/*
+	 *  This is the response from connectPseudoMaster.
+	 *  Reads default EEPROM Memory adress and returns the ID
+	 */
+
+	byte PSEUDO_ID;
+
+	PSEUDO_ID = EEPROM.read(ID_EEPROM_ADDR);
+
+	return PSEUDO_ID;
+} // END FUNCTION: connectPseudoSlave
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::readInitialStateMaster(int pseudoID, int ssPins[] )
+{
+	/*
+	 *  Reads 1 time only for the current stete of the pseudo connected in the ssPin specified
+	 *  Returns true only if pseudo's initial state is locked
+	 */	
+
+	byte receivedCS;
+	unsigned long eeprom_read_time_micros = 4000;  		// 4ms (4000μs) for read 
+
+	digitalWrite(ssPins[pseudoID-1], LOW);				// enable Pseudo Slave Select pin
+
+	receivedCS = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CS, eeprom_read_time_micros);
+
+	digitalWrite(ssPins[pseudoID-1], HIGH);				// disable Pseudo Slave Select pin
+
+	if( (receivedCS == STATE_LOCKED) )
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}	
+} // END FUNCTION: readInitialStateMaster
+
+// =========================================================================================================== //
+
+byte PseudoSPIcommMetamorphicManipulator::readInitialStateSlave()
+{
+	/*
+	 *  This is the response from readInitialStateMaster.
+	 *  Reads default EEPROM Memory adress and returns the CS
+	 */
+
+	byte PSEUDO_CS;
+
+	PSEUDO_CS = EEPROM.read(CS_EEPROM_ADDR);
+
+	return PSEUDO_CS;
+} // END FUNCTION: readInitialStateSlave
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::lockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE  )
+{
+	/*
+	 *  Orders slave to lock
+	 *  Returns true only if locked achieved
+	 */	
+
+	unsigned long wait_for_slave_response = SLAVE_RESPONSE_TIME;  		// 10μs for response
+
+	digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
+
+	*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_LOCK, wait_for_slave_response);
+
+	digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
+
+	if( (*CURRENT_STATE == STATE_LOCKED) )
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}	
+} // END FUNCTION: lockPseudoMaster
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::lockPseudoSlave(byte *CURRENT_STATE)
+{
+	/*
+	 *  This is the response from lockPseudoMaster.
+	 *  1. Checks if motor is IN_POSTION  -> if not responds false
+	 *  2. Controls the relay of lock pin
+	 *  3. Returns the new state
+	 */
+
+	if((*CURRENT_STATE == IN_POSITION))		// check current state
+	{
+		digitalWrite(RELAY_lock_Pin, HIGH);       // locks when NO connected
+		
+		*CURRENT_STATE = STATE_LOCKED;		// Change state
+
+		result = true;
+	}
+	else
+	{
+		result = false;
+	}
+
+	return result;	
+} // END FUNCTION: lockPseudoSlave
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::unlockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE  )
+{
+	/*
+	 *  Orders slave to lock
+	 *  Returns true only if locked achieved
+	 */	
+
+	unsigned long wait_for_slave_response = SLAVE_RESPONSE_TIME;  		// 10μs for response
+
+	digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
+
+	*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_UNLOCK, wait_for_slave_response);
+
+	digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
+
+	if( (*CURRENT_STATE == STATE_UNLOCKED) )
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}	
+} // END FUNCTION: lockPseudoMaster
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(byte *CURRENT_STATE)
+{
+	/*
+	 *  This is the response from lockPseudoMaster.
+	 *  1. Checks if motor is READY(GOAL POSITION is set)  -> if not responds false
+	 *  2. Controls the relay of lock pin
+	 *  3. Returns the new state
+	 */
+
+	if((*CURRENT_STATE == STATE_READY))			// check current state
+	{
+		digitalWrite(RELAY_lock_Pin, LOW);      // unlocks when NO connected
+		
+		*CURRENT_STATE = STATE_UNLOCKED;		// Change state
+
+		result = true;
+	}
+	else
+	{
+		result = false;
+	}
+
+	return result;	
+} // END FUNCTION: lockPseudoSlave
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, int ssPins[], byte GP, byte *CURRENT_STATE )
+{
+	/*
+	 *  Orders slave to set Goal Position, GP is specified by user
+	 *  GP range is determined by min/max pseudo position and step angle
+	 *  Returns true only if Ready state achieved
+	 */	
+
+	unsigned long wait_for_slave_response = SLAVE_RESPONSE_TIME;  		// 10μs for response
+
+	digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
+
+	*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer(GP, wait_for_slave_response);
+
+	digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
+
+	if( (*CURRENT_STATE == STATE_READY) )
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+} // END FUNCTION: setGoalPositionMaster
 
 // =========================================================================================================== //

@@ -7,35 +7,71 @@
 #ifndef PseudoSPIcommMetamorphicManipulator_h
 #define PseudoSPIcommMetamorphicManipulator_h
 
-#define PSEUDO1_MASTER 	0
-#define PSEUDO2_MASTER 	1
-#define PSEUDO3_MASTER 	2
-#define PSEUDO4_MASTER 	3
-#define PSEUDO5_MASTER 	4
-#define PSEUDO6_MASTER 	5
+#define SERIAL_BAUDRATE		115200
+
+// PINS CONFIGURATION
+#define MOSI_NANO 			11
+#define MISO_NANO 			12
+#define SCK_NANO 			13
+#define TXled_Pin 			7
+#define RXled_Pin 			6
+#define RELAY_lock_Pin		A0
+
+
+#define SSpinPseudo1		3
+#define SSpinPseudo2		4
+#define SSpinPseudo3		5
+
+#define PSEUDO1_MASTER 		0
+#define PSEUDO2_MASTER 		1
+#define PSEUDO3_MASTER 		2
+#define PSEUDO4_MASTER 		3
+#define PSEUDO5_MASTER 		4
+#define PSEUDO6_MASTER 		5
 
 #define ADDRESS_WIDTH		6
 
 #define STATE_LOCKED 	  	1
 #define STATE_UNLOCKED 		11
 #define IN_POSITION 		111
+#define IS_MOVING 			112
+#define STATE_READY			113
 
 #define CMD_LOCK		    2
 #define CMD_UNLOCK	    	22
-#define CMD_SGP	  			3	// Calls pseudojoint to set goal position
-#define CMD_HOME			4
+#define CMD_SGP	  			3		// Calls pseudojoint to set goal position
+#define CMD_MOVE			4
+#define CMD_HOME			5	
+#define CMD_CONNECT		    6
+#define CMD_GIVE_CS		    7
 
-#define PSEUDO_NUMBER1 	1
-#define PSEUDO_NUMBER2	2
+#define PSEUDO_NUMBER1 		1
+#define PSEUDO_NUMBER2		2
+#define PSEUDO_NUMBER3		3
+#define PSEUDO_NUMBER4		4
+#define PSEUDO_NUMBER5		5
+#define PSEUDO_NUMBER6		6
 
 #define MASTER_DELAY_TIME	100
 #define SLAVE_DELAY_TIME	5
+#define SLAVE_RESPONSE_TIME	20
+
+
+// EEPROM AREA ADDRESSES [0~255]
+#define ID_EEPROM_ADDR		0
+#define RW_CYCLES_ADDR		10
+#define MAX_POS_LIM_ADDR	20
+#define MIN_POS_LIM_ADDR	30
+#define STEP_ANGLE_ADDR		40
+#define CS_EEPROM_ADDR		50
+#define CP_EEPROM_ADDR		60
 
 // Default includes for driving pseudojoint steppers
 #include "Arduino.h"
 
 // For RF PseudoCommunication
 #include <SPI.h>
+#include <EEPROM.h>
 #include <RF24.h>
 #include <nRF24L01.h>
 #include <RF24_config.h>
@@ -47,9 +83,10 @@ extern bool return_read_attempt;
 extern bool result;
 extern bool continue_exec;
 extern bool return_function_state;
-extern int  CURRENT_STATE;
+extern byte CURRENT_STATE;
 extern int  COMMAND;
 extern int  slaveCommandReceived;
+extern unsigned long time_now_micros;
 
 const char STATE_LOCKED_STRING[] 	= "LOCKED";
 const char STATE_UNLOCKED_STRING[] 	= "UNLOCKED";
@@ -67,6 +104,17 @@ extern enum Mode masterMode;
 
 typedef const byte typeAddresses[ADDRESS_WIDTH]; 
 typeAddresses pseudoAddresses[] = {"1PMAd", "2PMAd"};
+
+typedef struct aliasPacketReceived{
+    unsigned long   micros_talked;
+    int             pseudoID_talked;
+    int             command_state; 
+}packets;
+
+typedef union aliasPacketReceivedUnion{
+  packets       packet_received;
+  unsigned char bytes[sizeof(packets)];
+}packets_u;
 
 class PseudoRFcommMetamorphicManipulator
 {
@@ -125,6 +173,89 @@ class PseudoRFcommMetamorphicManipulator
 	int _txLedPin;
 	int _rxLedPin;
 	
+};
+
+class PseudoSPIcommMetamorphicManipulator{
+
+	public:
+
+	// Structs for Master messaging
+	struct masterBlockStruct1{
+	  unsigned long   _micros;
+	  int             _pseudoID;
+	  int             command_sent;      
+	};
+
+	struct masterBlockStruct2{
+	  unsigned long   _micros;
+	  int             _pseudoID;
+	  int             state_received;      
+	};
+
+	// Structs for Slaves messaging
+	struct slaveBlockStruct1{
+	  unsigned long   _micros;
+	  int             _pseudoID;
+	  int             command_received;      
+	};
+
+	struct slaveBlockStruct2{
+	  unsigned long   _micros;
+	  int             _pseudoID;
+	  int             state_sent;      
+	};
+
+	// Constructor
+	PseudoSPIcommMetamorphicManipulator(enum Mode mode, int pseudoID, int mosiPin, int misoPin, int sckPin, int txLedPin, int rxLedPin, int ssPins[]);
+	
+	// Master Demand and Slave Response functions for data structs commands
+
+	void constructPacket(aliasPacketReceived *PACKET, int pseudoID, int command_code);
+	
+	void constructEptyPacket(aliasPacketReceived *PACKET);
+
+	bool executeTxRxMasterBlock(aliasPacketReceived PACKET, int pseudoID , int ssPins[]);
+	
+    // Master Demand and Slave Response functions for single byte commands
+
+	/*  *Master*  */
+
+	bool connectPseudoMaster(int pseudoID, int ssPins[]);
+	
+	bool readInitialStateMaster(int pseudoID, int ssPins[] );
+
+	bool lockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
+
+	bool unlockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
+	
+	bool setGoalPositionMaster(int pseudoID, int ssPins[], byte GP, byte *CURRENT_STATE );
+
+	/*  *Slave*  */
+
+	byte readInitialStateSlave();
+	
+	byte connectPseudoSlave();
+
+	bool lockPseudoSlave(byte *CURRENT_STATE);
+	
+	bool unlockPseudoSlave(byte *CURRENT_STATE);
+
+	bool setGoalPositionSlave(byte *CURRENT_STATE);
+
+	private:
+
+	int 			_pseudoID;
+	unsigned long   _micros;
+
+	int 			_mosiPin;
+	int 			_misoPin;
+	int 			_sckPin;
+
+	int 			_txLedPin;
+	int 			_rxLedPin;
+
+	byte singleByteTransfer(byte packet, unsigned long wait_for_response);
+
 };
 
  #endif
