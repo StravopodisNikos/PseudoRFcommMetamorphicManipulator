@@ -16,7 +16,7 @@
 #define TXled_Pin 			7
 #define RXled_Pin 			6
 #define RELAY_lock_Pin		A0
-
+#define dirPin_NANO			A5
 
 #define SSpinPseudo1		3
 #define SSpinPseudo2		4
@@ -36,6 +36,7 @@
 #define IN_POSITION 		111
 #define IS_MOVING 			112
 #define STATE_READY			113
+#define GP_SET				114
 
 #define CMD_LOCK		    2
 #define CMD_UNLOCK	    	22
@@ -56,15 +57,16 @@
 #define SLAVE_DELAY_TIME	5
 #define SLAVE_RESPONSE_TIME	20
 
+#define GEAR_FACTOR			60
+#define spr					800		// Depends on driver dip switches
 
 // EEPROM AREA ADDRESSES [0~255]
-#define ID_EEPROM_ADDR		0
-#define RW_CYCLES_ADDR		10
-#define MAX_POS_LIM_ADDR	20
-#define MIN_POS_LIM_ADDR	30
-#define STEP_ANGLE_ADDR		40
-#define CS_EEPROM_ADDR		50
-#define CP_EEPROM_ADDR		60
+#define ID_EEPROM_ADDR		0		// byte
+#define MAX_POS_LIM_ADDR	20		// float
+#define MIN_POS_LIM_ADDR	30		// float
+#define STEP_ANGLE_ADDR		40		// float
+#define CS_EEPROM_ADDR		50		// byte
+#define CP_EEPROM_ADDR		60		// byte
 
 // Default includes for driving pseudojoint steppers
 #include "Arduino.h"
@@ -83,11 +85,24 @@ extern bool return_read_attempt;
 extern bool result;
 extern bool continue_exec;
 extern bool return_function_state;
+
 extern byte CURRENT_STATE;
+extern byte PSEUDO_CURRENT_POSITION;
+
+extern double theta_p_current;
+extern double theta_p_goal;
+
 extern int  COMMAND;
 extern int  slaveCommandReceived;
+extern int  currentDirStatusPseudo;
+extern int  currentMoveRelPseudo;
+extern int  currentAbsPosPseudo;
+extern int  RELATIVE_STEPS_TO_MOVE;
+extern int  theta_p_current_steps;
+
 extern unsigned long time_now_micros;
 
+// Constants
 const char STATE_LOCKED_STRING[] 	= "LOCKED";
 const char STATE_UNLOCKED_STRING[] 	= "UNLOCKED";
 const char STATE_IN_POSITION_STRING[] = "IN_POSITION"; 
@@ -97,6 +112,9 @@ const char COMMAND_SGP_STRING[] 	= "SET GOAL POSITION";
 const char COMMAND_HOME_STRING[] 	= "HOME";
 const char MOVING[]					= "MOVING";
 
+const float ag  = ( 2 * PI ) / ( GEAR_FACTOR * spr ); 		// Geared Motor Step Angle(Angular Position of Output shaft of Gearbox )[rad]
+
+// New type definitions
 enum Mode{Tx, Rx}; 
 
 extern enum Mode slaveMode;
@@ -240,7 +258,7 @@ class PseudoSPIcommMetamorphicManipulator{
 	
 	bool unlockPseudoSlave(byte *CURRENT_STATE);
 
-	bool setGoalPositionSlave(byte *CURRENT_STATE);
+	bool setGoalPositionSlave(byte *PSEUDO_GOAL_POSITION, int *RELATIVE_STEPS_TO_MOVE, byte *CURRENT_STATE);
 
 	private:
 
@@ -256,6 +274,9 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	byte singleByteTransfer(byte packet, unsigned long wait_for_response);
 
+	void readCurrentPseudoPosition(double *theta_p_current, int *theta_p_current_steps);
+
+	bool calculateRelativeStepsToMove(double *theta_p_goal, int *RELATIVE_STEPS_TO_MOVE);
 };
 
  #endif

@@ -857,3 +857,115 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 } // END FUNCTION: setGoalPositionMaster
 
 // =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave( byte *PSEUDO_GOAL_POSITION, int *RELATIVE_STEPS_TO_MOVE, byte *CURRENT_STATE )
+{
+	/*
+	 *  Respond to setGoalPositionMaster, to execute pseudo must be locked
+	 *  1. Reads current position from EEPROM
+	 *  2. Calculates relative position(from external library function)
+	 *  3. Saves relative position motor must move
+	 *  4. Returns true only if Ready state achieved
+	 */	
+
+	if( (*CURRENT_STATE == STATE_LOCKED) )
+	{
+		// get thata values
+		// PseudoSPIcommMetamorphicManipulator::readCurrentPseudoPosition(&theta_p_current);
+
+		float step_angle = 0.00f;
+		float min_pseudo_angle = -PI/2;
+
+		EEPROM.get(STEP_ANGLE_ADDR, step_angle);    			// @setup: float f = 123.456f; EEPROM.put(eeAddress, f);
+
+		theta_p_goal    = step_angle * (*PSEUDO_GOAL_POSITION - 1) + min_pseudo_angle;
+
+		// calculate relative motion steps/direction
+		return_function_state = PseudoSPIcommMetamorphicManipulator::calculateRelativeStepsToMove(&theta_p_goal, RELATIVE_STEPS_TO_MOVE);
+		if (return_function_state)
+		{
+			*CURRENT_STATE = STATE_READY;
+		
+			result = true;
+		}
+		else
+		{
+			result = false;
+		}
+		
+	}
+	else
+	{
+		result = false;
+	}
+
+	return result;
+
+} // END FUNCTION: setGoalPositionSlave
+
+// =========================================================================================================== //
+
+void PseudoSPIcommMetamorphicManipulator::readCurrentPseudoPosition(double *theta_p_current, int *theta_p_current_steps)
+{
+	/*
+	 *	EXECUTED at setup() ONLY: 
+	 *  1. Reads the current position of pseudojoint saved at EEPROM
+	 *  2. saves the variable to RAM Memory as global variable for metamorphosis tests
+	 */
+
+	PSEUDO_CURRENT_POSITION = EEPROM.read(CP_EEPROM_ADDR);
+
+	float step_angle = 0.00f;
+	float min_pseudo_angle = -PI/2;
+
+	EEPROM.get(STEP_ANGLE_ADDR, step_angle);    			// @setup: float f = 123.456f; EEPROM.put(eeAddress, f);
+	
+	// calculate float angles from anatomy ci 
+	*theta_p_current = step_angle * (PSEUDO_CURRENT_POSITION - 1) + min_pseudo_angle;
+
+	*theta_p_current_steps = round( *theta_p_current / ag);
+}
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::calculateRelativeStepsToMove(double *theta_p_goal, int *RELATIVE_STEPS_TO_MOVE){
+
+ 	/*
+	 *  Called inside setGoalPositionSlave()
+	 *  Returns the max value for counter inside moveSlave()
+	 */ 
+  double hRelative;
+
+  int newDirStatus;
+
+  int inputAbsPos = round( *theta_p_goal / ag);
+
+  int previousDirStatus = currentDirStatusPseudo;
+  int previousMoveRel  = currentMoveRelPseudo; 
+  int previousAbsPos   = currentAbsPosPseudo;
+  
+  if (inputAbsPos == previousAbsPos){
+      return false;                                 	// Already there
+  }
+
+  *RELATIVE_STEPS_TO_MOVE = abs(inputAbsPos - previousAbsPos);
+
+  if( *RELATIVE_STEPS_TO_MOVE*previousMoveRel >=0 ){
+      newDirStatus = previousDirStatus;
+      digitalWrite(dirPin_NANO, newDirStatus);     	  	// Direction doesn't change
+  }else{
+      newDirStatus = !previousDirStatus;
+      digitalWrite(dirPin_NANO, newDirStatus);       	// Direction changes
+  }
+ 
+    // Saves global variables for next call
+    currentDirStatusPseudo = newDirStatus;
+    currentMoveRelPseudo   = *RELATIVE_STEPS_TO_MOVE;
+    currentAbsPosPseudo    = inputAbsPos;
+
+    // Calculate Velocity - Acceleration
+    return true;
+}
+
+// =========================================================================================================== //
+
