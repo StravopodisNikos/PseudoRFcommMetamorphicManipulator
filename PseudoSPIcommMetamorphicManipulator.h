@@ -15,19 +15,21 @@
 #define SCK_NANO 			13
 #define TXled_Pin 			7
 #define RXled_Pin 			6
+#define statusLED_Pin		2		// indicates master-pseudo com status
 #define RELAY_lock_Pin		A0
 #define dirPin_NANO			A5
+#define stepPin_NANO		A4
 
 #define SSpinPseudo1		3
 #define SSpinPseudo2		4
 #define SSpinPseudo3		5
 
-#define PSEUDO1_MASTER 		0
-#define PSEUDO2_MASTER 		1
-#define PSEUDO3_MASTER 		2
-#define PSEUDO4_MASTER 		3
-#define PSEUDO5_MASTER 		4
-#define PSEUDO6_MASTER 		5
+#define PSEUDO1_ID 			1
+#define PSEUDO2_ID 			2
+#define PSEUDO3_ID 			3
+#define PSEUDO4_ID 			4
+#define PSEUDO5_ID 			5
+#define PSEUDO6_ID 			6
 
 #define ADDRESS_WIDTH		6
 
@@ -37,14 +39,20 @@
 #define IS_MOVING 			112
 #define STATE_READY			113
 #define GP_SET				114
+#define META_FINISHED		115
+#define META_REPEAT			116
 
 #define CMD_LOCK		    2
 #define CMD_UNLOCK	    	22
 #define CMD_SGP	  			3		// Calls pseudojoint to set goal position
 #define CMD_MOVE			4
+#define CMD_STOP			41		// Danger Stop Event!
 #define CMD_HOME			5	
 #define CMD_CONNECT		    6
 #define CMD_GIVE_CS		    7
+#define CMD_GIVE_EEPROM	    8		// only at setup
+#define CMD_EXIT_META_EXEC  9
+#define CMD_CONT_META_EXEC  91
 
 #define PSEUDO_NUMBER1 		1
 #define PSEUDO_NUMBER2		2
@@ -62,11 +70,12 @@
 
 // EEPROM AREA ADDRESSES [0~255]
 #define ID_EEPROM_ADDR		0		// byte
-#define MAX_POS_LIM_ADDR	20		// float
-#define MIN_POS_LIM_ADDR	30		// float
-#define STEP_ANGLE_ADDR		40		// float
-#define CS_EEPROM_ADDR		50		// byte
-#define CP_EEPROM_ADDR		60		// byte
+#define MAX_POS_LIM_ADDR	10		// float
+#define MIN_POS_LIM_ADDR	20		// float
+#define STEP_ANGLE_ADDR		30		// float
+#define CS_EEPROM_ADDR		40		// byte
+#define CP_EEPROM_ADDR		50		// byte
+#define CD_EEPROM_ADDR		60		// uint32_t
 
 // Default includes for driving pseudojoint steppers
 #include "Arduino.h"
@@ -85,22 +94,27 @@ extern bool return_read_attempt;
 extern bool result;
 extern bool continue_exec;
 extern bool return_function_state;
+extern bool metaMode;					// flag to control loop for Metamorphosis <OPERATION MODE>
+extern bool metaExecution;				// ...
 
-extern byte CURRENT_STATE;
+extern byte CURRENT_STATE[];
 extern byte PSEUDO_CURRENT_POSITION;
 
-extern double theta_p_current;
-extern double theta_p_goal;
+extern float theta_p_current;
+extern float theta_p_goal;
 
 extern int  COMMAND;
 extern int  slaveCommandReceived;
-extern int  currentDirStatusPseudo;
+extern uint32_t  currentDirStatusPseudo;
 extern int  currentMoveRelPseudo;
 extern int  currentAbsPosPseudo;
 extern int  RELATIVE_STEPS_TO_MOVE;
 extern int  theta_p_current_steps;
 
 extern unsigned long time_now_micros;
+extern unsigned long time_now_millis;
+
+extern float step_angle;
 
 // Constants
 const char STATE_LOCKED_STRING[] 	= "LOCKED";
@@ -113,6 +127,7 @@ const char COMMAND_HOME_STRING[] 	= "HOME";
 const char MOVING[]					= "MOVING";
 
 const float ag  = ( 2 * PI ) / ( GEAR_FACTOR * spr ); 		// Geared Motor Step Angle(Angular Position of Output shaft of Gearbox )[rad]
+const float min_pseudo_angle = -PI/2;
 
 // New type definitions
 enum Mode{Tx, Rx}; 
@@ -177,7 +192,7 @@ class PseudoRFcommMetamorphicManipulator
 	bool writeCommandPseudoPacket(RF24 TALKER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] , int command_code);
 	
 	// read command
-	bool readCommandPseudoPacket(RF24 LISTENER, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] );
+	bool readCommandPseudoPacket(RF24 LISTENER, uint8_t radioPseudoNumber, byte *CURRENT_STATE, typeAddresses pseudoAddresses[] );
 
 	bool execTxRxBlockMaster(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[], int command_code, int * state_code );
 
@@ -224,7 +239,7 @@ class PseudoSPIcommMetamorphicManipulator{
 	};
 
 	// Constructor
-	PseudoSPIcommMetamorphicManipulator(enum Mode mode, int pseudoID, int mosiPin, int misoPin, int sckPin, int txLedPin, int rxLedPin, int ssPins[]);
+	PseudoSPIcommMetamorphicManipulator(enum Mode mode, int pseudoID, int statusLedPin,  int mosiPin, int misoPin, int sckPin, int txLedPin, int rxLedPin, int ssPins[]);
 	
 	// Master Demand and Slave Response functions for data structs commands
 
@@ -240,13 +255,17 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool connectPseudoMaster(int pseudoID, int ssPins[]);
 	
-	bool readInitialStateMaster(int pseudoID, int ssPins[] );
+	bool readInitialStateMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE  );
 
 	bool lockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
 
 	bool unlockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
 	
 	bool setGoalPositionMaster(int pseudoID, int ssPins[], byte GP, byte *CURRENT_STATE );
+
+	bool movePseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
+
+	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *metaMode, bool *metaExecution, byte *CURRENT_STATE );
 
 	/*  *Slave*  */
 
@@ -260,6 +279,10 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool setGoalPositionSlave(byte *PSEUDO_GOAL_POSITION, int *RELATIVE_STEPS_TO_MOVE, byte *CURRENT_STATE);
 
+	void saveEEPROMsettingsSlave(int pseudoID, bool *metaMode, bool *metaExecution, uint32_t currentDirStatusPseudo, int currentAbsPosPseudo);
+
+	void statusLEDblink( int number_of_blinks, unsigned long blink_for_ms);
+
 	private:
 
 	int 			_pseudoID;
@@ -271,12 +294,16 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	int 			_txLedPin;
 	int 			_rxLedPin;
+	int 			_statusLedPin;
 
 	byte singleByteTransfer(byte packet, unsigned long wait_for_response);
 
-	void readCurrentPseudoPosition(double *theta_p_current, int *theta_p_current_steps);
+	void readCurrentPseudoPosition(float *theta_p_current, int *theta_p_current_steps);
 
-	bool calculateRelativeStepsToMove(double *theta_p_goal, int *RELATIVE_STEPS_TO_MOVE);
+	bool calculateRelativeStepsToMove(float *theta_p_goal, int *RELATIVE_STEPS_TO_MOVE);
+
+	bool movePseudoSlave(  byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
+
 };
 
  #endif
