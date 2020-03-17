@@ -732,32 +732,42 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoMaster(int pseudoID, int ssP
 	 *  Orders slave to lock only if is in position
 	 *  Returns true only if locked achieved
 	 */	
+	bool result;
 
 	if (*CURRENT_STATE == IN_POSITION) 
 	{
-		unsigned long wait_for_slave_response = SLAVE_RESPONSE_TIME;  		// 10μs for response
+		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
+		unsigned long time_now_micros 			= micros();
+		bool slave_responded_correct_flag		= false;
 
 		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
 
-		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_LOCK, wait_for_slave_response);
+		do{
+
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_LOCK, slave_response);
+
+			if( (*CURRENT_STATE == STATE_LOCKED) )
+			{
+				slave_responded_correct_flag = true;
+				result = true;
+			}
+			else
+			{
+				result = false;
+			}	
+
+		}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
 
 		digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
-
-		if( (*CURRENT_STATE == STATE_LOCKED) )
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}	
 
 	}
 	else
 	{
-		return false;
+		result =  false;
 	}
 	
+
+	return result;
 } // END FUNCTION: lockPseudoMaster
 
 // =========================================================================================================== //
@@ -795,31 +805,41 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoMaster(int pseudoID, int s
 	 *  Orders slave to unlock only if GP has been set
 	 *  Returns true only if locked achieved
 	 */	
+	bool result;
 
 	if((*CURRENT_STATE == STATE_READY))										// check current state
 	{
-		unsigned long wait_for_slave_response = SLAVE_RESPONSE_TIME;  		// 10μs for response
+		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
+		unsigned long time_now_micros 			= micros();
+		bool slave_responded_correct_flag		= false;
 
 		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
 
-		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_UNLOCK, wait_for_slave_response);
+		do{
+
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_UNLOCK, slave_response);
+		
+			if( (*CURRENT_STATE == STATE_UNLOCKED) )
+			{
+				slave_responded_correct_flag = true;
+				result = true;
+			}
+			else
+			{
+				result = false;
+			}
+
+		}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
 
 		digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
 
-		if( (*CURRENT_STATE == STATE_UNLOCKED) )
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}	
 	}
 	else
 	{
-		return false;
+		result = false;
 	}
 	
+	return result;
 } // END FUNCTION: lockPseudoMaster
 
 // =========================================================================================================== //
@@ -858,31 +878,41 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 	 *  GP range is determined by min/max pseudo position and step angle
 	 *  Returns true only if Ready state achieved
 	 */	
+	bool result;
 
 	if (*CURRENT_STATE == STATE_LOCKED) // executes only if pseudo has returned LOCKED
 	{
-		unsigned long wait_for_slave_response = SLAVE_RESPONSE_TIME;  		// 10μs for response
+		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
+		unsigned long time_now_micros 			= micros();
+		bool slave_responded_correct_flag		= false;
 
 		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
+		
+		do{
 
-		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer(GP, wait_for_slave_response);
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer(GP, slave_response);
 
+			if( (*CURRENT_STATE == STATE_READY) )
+			{
+				slave_responded_correct_flag	= true;
+				result =  true;
+			}
+			else
+			{
+				result = false;
+			}
+
+		}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
+		
 		digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
 
-		if( (*CURRENT_STATE == STATE_READY) )
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
 	}
 	else
 	{
-		return false;
+		result = false;
 	}
 	
+	return result;
 } // END FUNCTION: setGoalPositionMaster
 
 // =========================================================================================================== //
@@ -1000,31 +1030,42 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoMaster(int pseudoID, int ssP
 	 *  Orders slave to lock
 	 *  Returns true only if locked achieved
 	 */	
+	bool result;
 
 	if ( *CURRENT_STATE == STATE_UNLOCKED )
 	{
-		unsigned long wait_for_slave_response = SLAVE_RESPONSE_TIME;  		// 10μs for response
+		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
+		unsigned long time_now_micros 			= micros();
+		bool slave_responded_correct_flag		= false;
 
 		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
 
-		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_MOVE, wait_for_slave_response);
+		do{
+
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_MOVE, slave_response);
+
+
+			if( (*CURRENT_STATE == IN_POSITION) )
+			{
+				slave_responded_correct_flag = true;
+				result = true;
+			}
+			else
+			{
+				result = false;
+			}
+
+		}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
 
 		digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
 
-		if( (*CURRENT_STATE == IN_POSITION) )
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
 	}
 	else
 	{
-		return false;
+		result = false;
 	}
-		
+	
+	return result;
 } // END FUNCTION: lockPseudoMaster
 
 // =========================================================================================================== //
@@ -1068,8 +1109,7 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  byte *CURRENT_STATE 
 
 // =========================================================================================================== //
 
-
-bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *metaMode, bool *metaExecution, byte *CURRENT_STATE )
+bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, byte *CURRENT_STATE )
 {
 	/*
 	 *  Orders slave to stop Metamorphosis Execution
@@ -1077,41 +1117,49 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 	 *  The same flags(for Master) must change accordingly!!!
 	 *  Master acknowledges that <METAMORPHOSIS> operation mode has finished successfully
 	 */	
+	bool result;
 
 	if (*CURRENT_STATE == STATE_LOCKED) // executes only if pseudo has returned LOCKED
 	{
-		unsigned long wait_for_slave_response = SLAVE_RESPONSE_TIME;  		// 10μs for response
+		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
+		unsigned long time_now_micros 			= micros();
+		bool slave_responded_correct_flag		= false;
 
 		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
 
-		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer(USER_COMMAND, wait_for_slave_response);
+		do{
+
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer(USER_COMMAND, slave_response);
+			
+			if( (*CURRENT_STATE == META_FINISHED) )
+			{
+				result = true;
+				*finishMetaMode = true;
+			}
+			else if ( (*CURRENT_STATE == META_REPEAT) )
+			{
+				result = true;
+				*finishMetaMode = false;
+			}
+			else
+			{
+				result = false;
+			}	
+
+		}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
 
 		digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
-
-		if( (*CURRENT_STATE == META_FINISHED) )
-		{
-			return true;
-			*metaMode = false;
-			*metaExecution == false;
-		}
-		else if ( (*CURRENT_STATE == META_REPEAT) )
-		{
-			return true;
-			*metaMode = true;
-			*metaExecution == true;
-		}
-		else
-		{
-			return false;
-		}
-		
+	
 	}
 	else
 	{
-		return false;
+		result = false;
 	}
 	
+	return result;
 } // END FUNCTION: setGoalPositionMaster
+
+// =========================================================================================================== //
 
 void PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(int pseudoID, bool *metaMode, bool *metaExecution, uint32_t currentDirStatusPseudo, int currentAbsPosPseudo)
 {

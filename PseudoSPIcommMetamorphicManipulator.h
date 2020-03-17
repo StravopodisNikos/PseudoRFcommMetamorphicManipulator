@@ -9,7 +9,10 @@
 
 #define SERIAL_BAUDRATE		115200
 
-// PINS CONFIGURATION
+// PINS CONFIGURATION MASTER
+const byte interruptPin 	= 2;
+
+// PINS CONFIGURATION SLAVE
 #define MOSI_NANO 			11
 #define MISO_NANO 			12
 #define SCK_NANO 			13
@@ -94,8 +97,9 @@ extern bool return_read_attempt;
 extern bool result;
 extern bool continue_exec;
 extern bool return_function_state;
-extern bool metaMode;					// flag to control loop for Metamorphosis <OPERATION MODE>
+extern bool END_METAMORPHOSIS;					// flag to control loop for Metamorphosis <OPERATION MODE>
 extern bool metaExecution;				// ...
+extern bool slave_responded_correct_flag;
 
 extern byte CURRENT_STATE[];
 extern byte PSEUDO_CURRENT_POSITION;
@@ -128,6 +132,8 @@ const char MOVING[]					= "MOVING";
 
 const float ag  = ( 2 * PI ) / ( GEAR_FACTOR * spr ); 		// Geared Motor Step Angle(Angular Position of Output shaft of Gearbox )[rad]
 const float min_pseudo_angle = -PI/2;
+
+const unsigned long wait_total_response_time_micros = 250;
 
 // New type definitions
 enum Mode{Tx, Rx}; 
@@ -265,7 +271,7 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool movePseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
 
-	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *metaMode, bool *metaExecution, byte *CURRENT_STATE );
+	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, byte *CURRENT_STATE );
 
 	/*  *Slave*  */
 
