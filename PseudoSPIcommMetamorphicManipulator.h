@@ -36,26 +36,47 @@ const byte interruptPin 	= 2;
 
 #define ADDRESS_WIDTH		6
 
-#define STATE_LOCKED 	  	1
-#define STATE_UNLOCKED 		11
+// COMMANDS SENT -> in single byte transfer each ci is regarded as command!
+// ci's: these are the bytes given to setGoalPositionMaster() for desired anatomy Metamorphosis
+
+#define c1					1
+#define c2					2
+#define c3					3
+#define c4					4
+#define c5					5	
+#define c6					6
+#define c7					7
+#define c8					8
+#define c9					9	
+#define c10					10
+#define c11					11
+#define c12					12
+#define c13					13
+
+#define CMD_LOCK		    20
+#define CMD_UNLOCK	    	21
+#define CMD_SGP	  			30		// In single byte transfer is overrided
+#define CMD_MOVE			40
+#define CMD_STOP			41		// Danger Stop Event!
+#define CMD_HOME			42	
+#define CMD_CONNECT		    60
+#define CMD_GIVE_IS		    70
+#define CMD_GIVE_CS		    71
+#define CMD_EXIT_META_EXEC  80
+#define CMD_CONT_META_EXEC  81
+#define CMD_GIVE_EEPROM	    90		// only at setup
+
+// STATES RETURNED
+#define STATE_LOCKED 	  	100
+#define STATE_UNLOCKED 		110
 #define IN_POSITION 		111
 #define IS_MOVING 			112
-#define STATE_READY			113
-#define GP_SET				114
-#define META_FINISHED		115
-#define META_REPEAT			116
-
-#define CMD_LOCK		    2
-#define CMD_UNLOCK	    	22
-#define CMD_SGP	  			3		// Calls pseudojoint to set goal position
-#define CMD_MOVE			4
-#define CMD_STOP			41		// Danger Stop Event!
-#define CMD_HOME			5	
-#define CMD_CONNECT		    6
-#define CMD_GIVE_CS		    7
-#define CMD_GIVE_EEPROM	    8		// only at setup
-#define CMD_EXIT_META_EXEC  9
-#define CMD_CONT_META_EXEC  91
+#define TALKED_DONE			113
+#define IS_TALKING 			114
+#define STATE_READY			115
+#define GP_SET				116
+#define META_FINISHED		117
+#define META_REPEAT			118
 
 #define PSEUDO_NUMBER1 		1
 #define PSEUDO_NUMBER2		2
@@ -72,13 +93,13 @@ const byte interruptPin 	= 2;
 #define spr					800		// Depends on driver dip switches
 
 // EEPROM AREA ADDRESSES [0~255]
-#define ID_EEPROM_ADDR		0		// byte
+#define ID_EEPROM_ADDR		0		// int
 #define MAX_POS_LIM_ADDR	10		// float
 #define MIN_POS_LIM_ADDR	20		// float
 #define STEP_ANGLE_ADDR		30		// float
-#define CS_EEPROM_ADDR		40		// byte
-#define CP_EEPROM_ADDR		50		// byte
-#define CD_EEPROM_ADDR		60		// uint32_t
+#define CS_EEPROM_ADDR		40		// byte			// Always updated with homing
+#define CP_EEPROM_ADDR		50		// byte			// ...
+#define CD_EEPROM_ADDR		60		// uint32_t		// ...
 
 // Default includes for driving pseudojoint steppers
 #include "Arduino.h"
@@ -133,7 +154,7 @@ const char MOVING[]					= "MOVING";
 const float ag  = ( 2 * PI ) / ( GEAR_FACTOR * spr ); 		// Geared Motor Step Angle(Angular Position of Output shaft of Gearbox )[rad]
 const float min_pseudo_angle = -PI/2;
 
-const unsigned long wait_total_response_time_micros = 250;
+const unsigned long wait_total_response_time_micros = 4000;  //250
 
 // New type definitions
 enum Mode{Tx, Rx}; 
@@ -261,7 +282,7 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool connectPseudoMaster(int pseudoID, int ssPins[]);
 	
-	bool readInitialStateMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE  );
+	bool readCurrentStateMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE  );
 
 	bool lockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
 
@@ -274,6 +295,8 @@ class PseudoSPIcommMetamorphicManipulator{
 	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, byte *CURRENT_STATE );
 
 	/*  *Slave*  */
+
+	void setupEEPROMslave(int newID, float max_angle_limit, float min_angle_limit, float pseudoStepAngle);
 
 	byte readInitialStateSlave();
 	
@@ -288,6 +311,8 @@ class PseudoSPIcommMetamorphicManipulator{
 	void saveEEPROMsettingsSlave(int pseudoID, bool *metaMode, bool *metaExecution, uint32_t currentDirStatusPseudo, int currentAbsPosPseudo);
 
 	void statusLEDblink( int number_of_blinks, unsigned long blink_for_ms);
+
+	bool movePseudoSlave(  byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
 
 	private:
 
@@ -307,9 +332,7 @@ class PseudoSPIcommMetamorphicManipulator{
 	void readCurrentPseudoPosition(float *theta_p_current, int *theta_p_current_steps);
 
 	bool calculateRelativeStepsToMove(float *theta_p_goal, int *RELATIVE_STEPS_TO_MOVE);
-
-	bool movePseudoSlave(  byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
-
+	
 };
 
  #endif
