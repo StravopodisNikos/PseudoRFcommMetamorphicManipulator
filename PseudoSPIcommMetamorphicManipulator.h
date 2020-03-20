@@ -19,9 +19,11 @@ const byte interruptPin 	= 2;
 #define TXled_Pin 			7
 #define RXled_Pin 			6
 #define statusLED_Pin		2		// indicates master-pseudo com status
-#define RELAY_lock_Pin		A0
 #define dirPin_NANO			A5
 #define stepPin_NANO		A4
+#define enabPin_NANO		A3
+#define hallSwitch_Pin		A1
+#define RELAY_lock_Pin		A0
 
 #define SSpinPseudo1		3
 #define SSpinPseudo2		4
@@ -90,7 +92,7 @@ const byte interruptPin 	= 2;
 #define SLAVE_RESPONSE_TIME	20
 
 #define GEAR_FACTOR			60
-#define spr					800		// Depends on driver dip switches
+#define spr					800	// Depends on driver dip switches
 
 // EEPROM AREA ADDRESSES [0~255]
 #define ID_EEPROM_ADDR		0		// int
@@ -130,7 +132,7 @@ extern float theta_p_goal;
 
 extern int  COMMAND;
 extern int  slaveCommandReceived;
-extern uint32_t  currentDirStatusPseudo;
+extern byte  currentDirStatusPseudo;
 extern int  currentMoveRelPseudo;
 extern int  currentAbsPosPseudo;
 extern int  RELATIVE_STEPS_TO_MOVE;
@@ -150,6 +152,9 @@ const char COMMAND_UNLOCK_STRING[] 	= "UNLOCK";
 const char COMMAND_SGP_STRING[] 	= "SET GOAL POSITION";
 const char COMMAND_HOME_STRING[] 	= "HOME";
 const char MOVING[]					= "MOVING";
+const char HOMING[]					= "HOMING";
+const char EXIT_METAMORPHOSIS[]		= "EXIT_METAMORPHOSIS";
+const char REPEAT_METAMORPHOSIS[]	= "REPEAT_METAMORPHOSIS";
 
 const float ag  = ( 2 * PI ) / ( GEAR_FACTOR * spr ); 		// Geared Motor Step Angle(Angular Position of Output shaft of Gearbox )[rad]
 const float min_pseudo_angle = -PI/2;
@@ -308,11 +313,17 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool setGoalPositionSlave(byte *PSEUDO_GOAL_POSITION, int *RELATIVE_STEPS_TO_MOVE, byte *CURRENT_STATE);
 
-	void saveEEPROMsettingsSlave(int pseudoID, bool *metaMode, bool *metaExecution, uint32_t currentDirStatusPseudo, int currentAbsPosPseudo);
+	bool saveEEPROMsettingsSlave(byte *CURRENT_STATE , byte currentDirStatusPseudo, int currentAbsPosPseudo);
+
+	void readEEPROMsettingsSlave(byte *CURRENT_STATE , byte *currentDirStatusPseudo, int *currentAbsPosPseudo);
 
 	void statusLEDblink( int number_of_blinks, unsigned long blink_for_ms);
 
+	void txrxLEDSblink( int number_of_blinks, unsigned long blink_for_ms);
+	
 	bool movePseudoSlave(  byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
+
+	bool setHomePositionSlave( int * currentAbsPosPseudo);
 
 	private:
 
@@ -332,7 +343,7 @@ class PseudoSPIcommMetamorphicManipulator{
 	void readCurrentPseudoPosition(float *theta_p_current, int *theta_p_current_steps);
 
 	bool calculateRelativeStepsToMove(float *theta_p_goal, int *RELATIVE_STEPS_TO_MOVE);
-	
+
 };
 
  #endif

@@ -712,7 +712,7 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentStateMaster(int pseudoID, i
 	
 		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CS, eeprom_read_time_micros);
 		
-		if( (*CURRENT_STATE == STATE_LOCKED) )
+		if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED))
 		{
 			slave_responded_correct_flag = true;
 			result = true;
@@ -805,7 +805,7 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoSlave(byte *CURRENT_STATE)
 
 	if((*CURRENT_STATE == IN_POSITION))		// check current state
 	{
-		digitalWrite(RELAY_lock_Pin, HIGH);       // locks when NO connected
+		digitalWrite(RELAY_lock_Pin, LOW);       // locks when NO connected
 		
 		*CURRENT_STATE = STATE_LOCKED;		// Change state
 
@@ -836,7 +836,7 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoMaster(int pseudoID, int s
 		bool slave_responded_correct_flag		= false;
 
 		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
-		Serial.println("Mphka unlockPseudoMaster");
+
 		do{
 
 			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_UNLOCK, slave_response);
@@ -878,7 +878,7 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(byte *CURRENT_STATE)
 
 	if((*CURRENT_STATE == STATE_READY))			// check current state
 	{
-		digitalWrite(RELAY_lock_Pin, LOW);      // unlocks when NO connected
+		digitalWrite(RELAY_lock_Pin, HIGH);      // unlocks when NO connected
 		
 		*CURRENT_STATE = STATE_UNLOCKED;		// Change state
 
@@ -903,14 +903,14 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 	 */	
 	bool result;
 
-	if (*CURRENT_STATE == STATE_LOCKED) // executes only if pseudo has returned LOCKED
+	if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_REPEAT) ) 	// executes only if pseudo has returned LOCKED
 	{
 		unsigned long slave_response 			= 100*SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
 		unsigned long time_now_micros 			= micros();
 		bool slave_responded_correct_flag		= false;
-		unsigned long eeprom_read_time_micros 	= 3500;  					// 3.5ms (3500μs) for read 
+		unsigned long eeprom_read_time_micros 	= 3500;  						// 3.5ms (3500μs) for read 
 
-		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
+		digitalWrite(ssPins[pseudoID-1], LOW);									// enable Pseudo Slave Select pin
 		
 		do{
 
@@ -963,8 +963,9 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave( byte *PSEUDO_GOA
 		EEPROM.get(STEP_ANGLE_ADDR, step_angle);    			// @setup: float f = 123.456f; EEPROM.put(eeAddress, f);
 
 		theta_p_goal    = step_angle * (*PSEUDO_GOAL_POSITION - 1) + min_pseudo_angle;
-		Serial.println("Mphka setGoalPositionSlave");
+
 		Serial.print("theta_p_goal="); Serial.println(theta_p_goal);
+
 		// calculate relative motion steps/direction
 		return_function_state = PseudoSPIcommMetamorphicManipulator::calculateRelativeStepsToMove(&theta_p_goal, RELATIVE_STEPS_TO_MOVE);
 		if (return_function_state)
@@ -1000,7 +1001,7 @@ void PseudoSPIcommMetamorphicManipulator::readCurrentPseudoPosition(float *theta
 
 	PSEUDO_CURRENT_POSITION = EEPROM.read(CP_EEPROM_ADDR);
 
-	step_angle = 0.00f;
+	float step_angle = 0.00f;
 
 	EEPROM.get(STEP_ANGLE_ADDR, step_angle);    			// @setup: float f = 123.456f; EEPROM.put(eeAddress, f);
 	
@@ -1022,23 +1023,26 @@ bool PseudoSPIcommMetamorphicManipulator::calculateRelativeStepsToMove(float *th
 
 	int inputAbsPos = round( *theta_p_goal / ag);
 
-	uint32_t previousDirStatus = currentDirStatusPseudo;
-	int previousMoveRel  = currentMoveRelPseudo; 
-	int previousAbsPos   = currentAbsPosPseudo;
+	byte previousDirStatus 	= currentDirStatusPseudo;
+	int previousMoveRel  		= currentMoveRelPseudo; 
+	int previousAbsPos   		= currentAbsPosPseudo;
 	
 	if (inputAbsPos == previousAbsPos){
 		return false;                                 	// Already there
 	}
 
-	*RELATIVE_STEPS_TO_MOVE = abs(inputAbsPos - previousAbsPos);
+	*RELATIVE_STEPS_TO_MOVE = inputAbsPos - previousAbsPos;
 	Serial.print("RELATIVE_STEPS_TO_MOVE = "); Serial.println(*RELATIVE_STEPS_TO_MOVE);
 
-	if( *RELATIVE_STEPS_TO_MOVE*previousMoveRel >=0 ){
+	if( *RELATIVE_STEPS_TO_MOVE*previousMoveRel >=0 )
+	{
 		newDirStatus = previousDirStatus;
 		digitalWrite(dirPin_NANO, newDirStatus);     	  	// Direction doesn't change
-	}else{
+	}
+	else
+	{
 		newDirStatus = !previousDirStatus;
-		digitalWrite(dirPin_NANO, newDirStatus);       	// Direction changes
+		digitalWrite(dirPin_NANO, newDirStatus);       		// Direction changes
 	}
 	
 		// Saves global variables for next call
@@ -1110,12 +1114,12 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  byte *CURRENT_STATE 
 	if( (*CURRENT_STATE == STATE_UNLOCKED) )
 	{
 		// moves motor
-		for(int motor_step = 0; motor_step < *RELATIVE_STEPS_TO_MOVE; motor_step++){
+		for(int motor_step = 0; motor_step < abs( *RELATIVE_STEPS_TO_MOVE ); motor_step++){
           
 		    time_now_micros = micros();
 
 			digitalWrite(stepPin_NANO, HIGH);
-    		while(micros() < time_now_micros + 250){}                   //wait approx. [μs]
+    		while(micros() < time_now_micros + 60){}                   //wait approx. [μs]
 			//delayMicroseconds(250);
     		digitalWrite(stepPin_NANO, LOW);
 
@@ -1165,18 +1169,21 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 			{
 				result = true;
 				*finishMetaMode = true;
+				slave_responded_correct_flag	= true;
 			}
 			else if ( (*CURRENT_STATE == META_REPEAT) )
 			{
 				result = true;
 				*finishMetaMode = false;
+				slave_responded_correct_flag	= true;
 			}
 			else
 			{
 				result = false;
 			}	
 
-		}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
+		//}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
+		}while( (!slave_responded_correct_flag) );
 
 		digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
 	
@@ -1191,23 +1198,24 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 
 // =========================================================================================================== //
 
-void PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(int pseudoID, bool *metaMode, bool *metaExecution, uint32_t currentDirStatusPseudo, int currentAbsPosPseudo)
+bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(byte *CURRENT_STATE , byte currentDirStatusPseudo, int currentAbsPosPseudo)
 {
 	/*
 	 *	Responds to continueMetaExecutionMaster
 	 */
+	bool result;
 
-	if (*metaExecution == false)												// Stop Metamorphosis Execution Job
-	{
+	if( (*CURRENT_STATE == STATE_LOCKED) )
+	{	
 		// 1. Save the dirPin status
-		EEPROM.put(CD_EEPROM_ADDR, currentDirStatusPseudo);
+		EEPROM.update(CD_EEPROM_ADDR, currentDirStatusPseudo);
 
 		// 2. Save current absolute position in which pseudo is locked after metamorphosis
 		// 2.1 Calculate float absolute position
 		float currentAbsPosPseudo_float = currentAbsPosPseudo * ag;
 
 		// 2.1 first must compute ci from (int) current absolute position in steps
-		step_angle = 0.00f;
+		float step_angle = 0.00f;
 		EEPROM.get(STEP_ANGLE_ADDR, step_angle);
 
 		byte current_abs_ci = round( (currentAbsPosPseudo_float - min_pseudo_angle) / step_angle ) + 1 ;
@@ -1215,17 +1223,46 @@ void PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(int pseudoID, 
 		// 2.2 then save if ci changed
 		EEPROM.update(CP_EEPROM_ADDR, current_abs_ci);
 
-		// 3. set flag to exit Metamorphosis <Operation Mode>
-		*metaMode = false;
+		// 3. Save the last state of pseudo(always locked)
+		*CURRENT_STATE = META_FINISHED;
+
+		EEPROM.update(CS_EEPROM_ADDR, *CURRENT_STATE);
+
+		result = true;
 	}
 	else
 	{
-		// tells user that did not save settings because metaExecution will repeat
-		Serial.print("[		PSEUDO:		"); Serial.print(pseudoID); Serial.println("]	SAVE EEPROM SETTINGS: 	FALSE");
-
-		*metaMode = true;
+		result = false;
 	}
 	
+	return result;
+
+} // END FUNCTION: saveEEPROMsettingsSlave
+
+// =========================================================================================================== //
+
+void PseudoSPIcommMetamorphicManipulator::readEEPROMsettingsSlave(byte *CURRENT_STATE , byte *currentDirStatusPseudo, int *currentAbsPosPseudo)
+{
+	/*
+	 *	This function is executed at setup() to initialize the global variables of slave
+	 */
+
+	// 1. Read the saved dirPin status
+	*currentDirStatusPseudo = EEPROM.read(CD_EEPROM_ADDR);
+
+	// 1. Read the saved absolute ci
+	byte current_abs_ci = EEPROM.read(CP_EEPROM_ADDR);
+
+	float step_angle = 0.00f;
+	EEPROM.get(STEP_ANGLE_ADDR, step_angle);    			
+
+	float currentAbsPosPseudo_float = step_angle * (current_abs_ci - 1) + min_pseudo_angle;
+
+	*currentAbsPosPseudo = 	round( currentAbsPosPseudo_float / ag);			
+
+	// 3. Read the saved state
+	*CURRENT_STATE = EEPROM.read(CS_EEPROM_ADDR);
+
 } // END FUNCTION: saveEEPROMsettingsSlave
 
 // =========================================================================================================== //
@@ -1236,11 +1273,25 @@ void PseudoSPIcommMetamorphicManipulator::statusLEDblink( int number_of_blinks, 
 	{
 		 unsigned long time_now_millis = millis();
 
-		digitalWrite(_statusLedPin,HIGH);
+		digitalWrite(statusLED_Pin,HIGH);
 		while(millis() < time_now_millis + blink_for_ms){}                 
-		digitalWrite(_statusLedPin,LOW);
+		digitalWrite(statusLED_Pin,LOW);
 	}
 } // END FUNCTION: statusLEDblink
+
+// =========================================================================================================== //
+
+void PseudoSPIcommMetamorphicManipulator::txrxLEDSblink( int number_of_blinks, unsigned long blink_for_ms)
+{
+	for (int blink_counter = 0; blink_counter < number_of_blinks; blink_counter++)
+	{
+		 unsigned long time_now_millis = millis();
+
+		digitalWrite(TXled_Pin,HIGH); digitalWrite(RXled_Pin,HIGH);
+		while(millis() < time_now_millis + blink_for_ms){}                 
+		digitalWrite(TXled_Pin,LOW); digitalWrite(RXled_Pin,LOW);
+	}
+} // END FUNCTION: txrxLEDSblink
 
 // =========================================================================================================== //
 
@@ -1269,5 +1320,29 @@ void PseudoSPIcommMetamorphicManipulator::setupEEPROMslave( int newID, float max
 	// To be continued...
 
 } // END FUNCTION: setupEEPROMslave
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(int *currentAbsPosPseudo){
+
+	unsigned long homing_stepping_delay = 500;
+
+	Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(HOMING); Serial.println("   ]");          
+		
+	while( (digitalRead(hallSwitch_Pin) == LOW ) )
+	{                                                                        
+		time_now_micros = micros();
+
+		digitalWrite(stepPin_NANO, HIGH);
+    	while(micros() < time_now_micros + homing_stepping_delay){}                   //wait approx. [μs]
+    	digitalWrite(stepPin_NANO, LOW);
+
+		Serial.println("STEPPER HOMING");
+	}
+
+	*currentAbsPosPseudo = 0;
+	
+	return true;
+} // END FUNCTION: 
 
 // =========================================================================================================== //
