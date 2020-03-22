@@ -91,8 +91,9 @@ const byte interruptPin 	= 2;
 #define SLAVE_DELAY_TIME	5
 #define SLAVE_RESPONSE_TIME	20
 
-#define GEAR_FACTOR			60
-#define spr					800	// Depends on driver dip switches
+#define GEAR_FACTOR				60
+#define spr						800			// Depends on driver dip switches
+#define METAMORPHOSIS_Ci_STEPS	2000		// calculated using formula: (step_angle_deg/360) * spr * GEAR_FACTOR
 
 // EEPROM AREA ADDRESSES [0~255]
 #define ID_EEPROM_ADDR		0		// int
@@ -293,7 +294,7 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool unlockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
 	
-	bool setGoalPositionMaster(int pseudoID, int ssPins[], byte GP, byte *CURRENT_STATE );
+	bool setGoalPositionMaster(int pseudoID, int ssPins[], byte * GP, byte *CURRENT_STATE );
 
 	bool movePseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
 
@@ -313,9 +314,13 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool setGoalPositionSlave(byte *PSEUDO_GOAL_POSITION, int *RELATIVE_STEPS_TO_MOVE, byte *CURRENT_STATE);
 
-	bool saveEEPROMsettingsSlave(byte *CURRENT_STATE , byte currentDirStatusPseudo, int currentAbsPosPseudo);
+	bool setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte * currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte * currentDirStatusPseudo, byte *CURRENT_STATE );
 
-	void readEEPROMsettingsSlave(byte *CURRENT_STATE , byte *currentDirStatusPseudo, int *currentAbsPosPseudo);
+	bool saveEEPROMsettingsSlave(byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo);
+
+	bool repeatMetaSlave(byte *CURRENT_STATE);
+
+	void readEEPROMsettingsSlave(int pseudoID, byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci,  byte *currentDirStatusPseudo, int *currentAbsPosPseudo);
 
 	void statusLEDblink( int number_of_blinks, unsigned long blink_for_ms);
 
@@ -323,7 +328,7 @@ class PseudoSPIcommMetamorphicManipulator{
 	
 	bool movePseudoSlave(  byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
 
-	bool setHomePositionSlave( int * currentAbsPosPseudo);
+	bool setHomePositionSlave( int * currentAbsPosPseudo, byte *currentAbsPosPseudo_ci);
 
 	private:
 

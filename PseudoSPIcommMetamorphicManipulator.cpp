@@ -839,7 +839,7 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoMaster(int pseudoID, int s
 
 		do{
 
-			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_UNLOCK, slave_response);
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte ) CMD_UNLOCK, slave_response);
 		
 			if( (*CURRENT_STATE == STATE_UNLOCKED) )
 			{
@@ -876,11 +876,11 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(byte *CURRENT_STATE)
 	 *  3. Returns the new state
 	 */
 
-	if((*CURRENT_STATE == STATE_READY))			// check current state
+	if((*CURRENT_STATE == STATE_READY))				// check current state
 	{
-		digitalWrite(RELAY_lock_Pin, HIGH);      // unlocks when NO connected
+		digitalWrite(RELAY_lock_Pin, HIGH);      	// unlocks when NO connected
 		
-		*CURRENT_STATE = STATE_UNLOCKED;		// Change state
+		*CURRENT_STATE = STATE_UNLOCKED;			// Change state
 
 		result = true;
 	}
@@ -894,7 +894,7 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(byte *CURRENT_STATE)
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, int ssPins[], byte GP, byte *CURRENT_STATE )
+bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, int ssPins[], byte * GP, byte *CURRENT_STATE )
 {
 	/*
 	 *  Orders slave to set Goal Position, GP is specified by user
@@ -903,7 +903,7 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 	 */	
 	bool result;
 
-	if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_REPEAT) ) 	// executes only if pseudo has returned LOCKED
+	if ( (*CURRENT_STATE == STATE_LOCKED) ) 	// executes only if pseudo has returned LOCKED
 	{
 		unsigned long slave_response 			= 100*SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
 		unsigned long time_now_micros 			= micros();
@@ -913,9 +913,10 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 		digitalWrite(ssPins[pseudoID-1], LOW);									// enable Pseudo Slave Select pin
 		
 		do{
-
-			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer(GP, eeprom_read_time_micros);
-
+			Serial.println("Gamhmeno : ");
+			byte goal_ci_from_master = *GP;
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer( goal_ci_from_master, eeprom_read_time_micros);
+			Serial.println(*CURRENT_STATE);
 			if( (*CURRENT_STATE == STATE_READY) )
 			{
 				slave_responded_correct_flag	= true;
@@ -946,18 +947,16 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave( byte *PSEUDO_GOA
 {
 	/*
 	 *  Respond to setGoalPositionMaster, to execute pseudo must be locked
-	 *  1. Reads current position from EEPROM
+	 *  1. Reads current position from global variable after initialized at setup() from EEPROM (currentAbsPosPseudo_ci)
 	 *  2. Calculates relative position(from external library function)
 	 *  3. Saves relative position motor must move
 	 *  4. Returns true only if Ready state achieved
 	 */	
 	bool result;
 
-	if( (*CURRENT_STATE == STATE_LOCKED) )
+	if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) )
 	{
-		// get thata values
-		// PseudoSPIcommMetamorphicManipulator::readCurrentPseudoPosition(&theta_p_current);
-
+		
 		float step_angle = 0.00f;
 
 		EEPROM.get(STEP_ANGLE_ADDR, step_angle);    			// @setup: float f = 123.456f; EEPROM.put(eeAddress, f);
@@ -977,7 +976,76 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave( byte *PSEUDO_GOA
 		else
 		{
 			result = false;
+		}	
+
+	}
+	else
+	{
+		result = false;
+	}
+
+	return result;
+
+} // END FUNCTION: setGoalPositionSlave
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte * currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte * currentDirStatusPseudo, byte *CURRENT_STATE )
+{
+	/*
+	 *  Respond to setGoalPositionMaster, to execute pseudo must be locked = > Set number of relative steps to move and direction !!!
+	 *  1. Reads goal position ci (PSEUDO_GOAL_POSITION) 
+	 *  2. Reads current position from global variable after initialized at setup() from EEPROM (currentAbsPosPseudo_ci)
+	 *  3. Reads theta step (float)
+	 *  4. Calculates Delta theta_p (float) and (int) using METAMORPHOSIS_Ci_STEPS
+	 *  5. Calculates direction
+	 */	
+	bool result;
+
+	if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) )
+	{
+		Serial.println("PSEUDO_GOAL_POSITION = "); Serial.println(*PSEUDO_GOAL_POSITION);
+		delay(1000);
+
+		// 3. Reading theta step
+		float step_angle = 0.0000f;
+
+		EEPROM.get(STEP_ANGLE_ADDR, step_angle);    				
+
+		// 4. Delta theta_p (float)
+		float delta_theta_p = step_angle * abs( *PSEUDO_GOAL_POSITION - *currentAbsPosPseudo_ci );
+
+		//*RELATIVE_STEPS_TO_MOVE = round (delta_theta_p / ag );										// inaccuracies bugs
+
+		*RELATIVE_STEPS_TO_MOVE = METAMORPHOSIS_Ci_STEPS * abs( *PSEUDO_GOAL_POSITION - *currentAbsPosPseudo_ci );
+
+		// 5. Direction status
+		if ( *PSEUDO_GOAL_POSITION <= *currentAbsPosPseudo_ci)
+		{
+			*currentDirStatusPseudo = LOW;						// move CCW
 		}
+		else
+		{
+			*currentDirStatusPseudo = HIGH;						// move CW
+		}
+		
+		digitalWrite(dirPin_NANO, *currentDirStatusPseudo);
+
+		// Print the results in serial monitor
+		Serial.print("[   setGoalPositionSlave2   ]   SUCCESS"); 
+		Serial.println("-----------------------------------------------------------------------------------------------");
+		Serial.print("[    CURRENT_POS_ci    ]    [   "); Serial.print(*currentAbsPosPseudo_ci); Serial.println("     ]");
+		Serial.print("[      GOAL_POS_ci     ]    [   "); Serial.print(*PSEUDO_GOAL_POSITION); Serial.println("       ]");
+		Serial.print("[RELATIVE_STEPS_TO_MOVE]    [   "); Serial.print(*RELATIVE_STEPS_TO_MOVE); Serial.println("     ]");
+		Serial.print("[ FLOAT_ANGLE_TO_MOVE  ]    [   "); Serial.print(delta_theta_p); Serial.println("             ]");
+		Serial.print("[   DIRECTION_TO_MOVE  ]    [   "); Serial.print(*currentDirStatusPseudo); Serial.println("     ]");
+		Serial.println("-----------------------------------------------------------------------------------------------");
+		//delay(10000);
+		* currentAbsPosPseudo_ci = * PSEUDO_GOAL_POSITION;		// assumes that moveSlave executes successfully and chnages global variable
+
+		*CURRENT_STATE = STATE_READY;
+		
+		result = true;
 		
 	}
 	else
@@ -1023,7 +1091,7 @@ bool PseudoSPIcommMetamorphicManipulator::calculateRelativeStepsToMove(float *th
 
 	int inputAbsPos = round( *theta_p_goal / ag);
 
-	byte previousDirStatus 	= currentDirStatusPseudo;
+	byte previousDirStatus 		= currentDirStatusPseudo;
 	int previousMoveRel  		= currentMoveRelPseudo; 
 	int previousAbsPos   		= currentAbsPosPseudo;
 	
@@ -1119,7 +1187,7 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  byte *CURRENT_STATE 
 		    time_now_micros = micros();
 
 			digitalWrite(stepPin_NANO, HIGH);
-    		while(micros() < time_now_micros + 60){}                   //wait approx. [μs]
+    		while(micros() < time_now_micros + 250){}                   //wait approx. [μs]
 			//delayMicroseconds(250);
     		digitalWrite(stepPin_NANO, LOW);
 
@@ -1127,9 +1195,9 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  byte *CURRENT_STATE 
           	Serial.print("current step = "); Serial.println(motor_step);
         }	
 
-		// motor finished - change state 
+		// motor finished - change state only. CP - CD have already changed in setGoalPositionSlave2
 		*CURRENT_STATE = IN_POSITION;
-		
+
 		result = true;
 	}
 	else
@@ -1198,7 +1266,7 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(byte *CURRENT_STATE , byte currentDirStatusPseudo, int currentAbsPosPseudo)
+bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo)
 {
 	/*
 	 *	Responds to continueMetaExecutionMaster
@@ -1208,20 +1276,10 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(byte *CURRENT_
 	if( (*CURRENT_STATE == STATE_LOCKED) )
 	{	
 		// 1. Save the dirPin status
-		EEPROM.update(CD_EEPROM_ADDR, currentDirStatusPseudo);
+		EEPROM.update(CD_EEPROM_ADDR, *currentDirStatusPseudo);
 
 		// 2. Save current absolute position in which pseudo is locked after metamorphosis
-		// 2.1 Calculate float absolute position
-		float currentAbsPosPseudo_float = currentAbsPosPseudo * ag;
-
-		// 2.1 first must compute ci from (int) current absolute position in steps
-		float step_angle = 0.00f;
-		EEPROM.get(STEP_ANGLE_ADDR, step_angle);
-
-		byte current_abs_ci = round( (currentAbsPosPseudo_float - min_pseudo_angle) / step_angle ) + 1 ;
-
-		// 2.2 then save if ci changed
-		EEPROM.update(CP_EEPROM_ADDR, current_abs_ci);
+		EEPROM.update(CP_EEPROM_ADDR, * currentAbsPosPseudo_ci);
 
 		// 3. Save the last state of pseudo(always locked)
 		*CURRENT_STATE = META_FINISHED;
@@ -1239,9 +1297,31 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(byte *CURRENT_
 
 } // END FUNCTION: saveEEPROMsettingsSlave
 
+bool PseudoSPIcommMetamorphicManipulator::repeatMetaSlave(byte *CURRENT_STATE)
+{
+	/*
+	 *	Responds to continueMetaExecutionMaster
+	 */
+	bool result;
+
+	if( (*CURRENT_STATE == STATE_LOCKED) )
+	{	
+		*CURRENT_STATE = META_REPEAT;
+
+		result = true;
+	}
+	else
+	{
+		result = false;
+	}
+	
+	return result;
+
+} // END FUNCTION: saveEEPROMsettingsSlave
+
 // =========================================================================================================== //
 
-void PseudoSPIcommMetamorphicManipulator::readEEPROMsettingsSlave(byte *CURRENT_STATE , byte *currentDirStatusPseudo, int *currentAbsPosPseudo)
+void PseudoSPIcommMetamorphicManipulator::readEEPROMsettingsSlave(int pseudoID, byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci,  byte *currentDirStatusPseudo, int *currentAbsPosPseudo)
 {
 	/*
 	 *	This function is executed at setup() to initialize the global variables of slave
@@ -1250,20 +1330,31 @@ void PseudoSPIcommMetamorphicManipulator::readEEPROMsettingsSlave(byte *CURRENT_
 	// 1. Read the saved dirPin status
 	*currentDirStatusPseudo = EEPROM.read(CD_EEPROM_ADDR);
 
-	// 1. Read the saved absolute ci
-	byte current_abs_ci = EEPROM.read(CP_EEPROM_ADDR);
+	// 2. Read the saved absolute ci
+	*currentAbsPosPseudo_ci = EEPROM.read(CP_EEPROM_ADDR);
 
-	float step_angle = 0.00f;
+	float step_angle = 0.000000f;
 	EEPROM.get(STEP_ANGLE_ADDR, step_angle);    			
 
-	float currentAbsPosPseudo_float = step_angle * (current_abs_ci - 1) + min_pseudo_angle;
+	float currentAbsPosPseudo_float = 0.000000f;
+	currentAbsPosPseudo_float = step_angle * (*currentAbsPosPseudo_ci - 1) + min_pseudo_angle;
 
 	*currentAbsPosPseudo = 	round( currentAbsPosPseudo_float / ag);			
 
 	// 3. Read the saved state
 	*CURRENT_STATE = EEPROM.read(CS_EEPROM_ADDR);
 
-} // END FUNCTION: saveEEPROMsettingsSlave
+	// Print the results in serial monitor
+    Serial.print("[   PSEUDO:"); Serial.print(pseudoID); Serial.println("   ]   [READ EEPROM SETTINGS]   SUCCESS"); 
+	Serial.println("-----------------------------------------------------------------------------------------------");
+	Serial.print("[   PSEUDO:"); Serial.print(pseudoID); Serial.print("   ]   [   CURRENT_STATE    ]    [   "); Serial.print(*CURRENT_STATE); Serial.println("   ]");
+	Serial.print("[   PSEUDO:"); Serial.print(pseudoID); Serial.print("   ]   [   CURRENT_POS_ci   ]    [   "); Serial.print(*currentAbsPosPseudo_ci); Serial.println("     ]");
+	Serial.print("[   PSEUDO:"); Serial.print(pseudoID); Serial.print("   ]   [  CURRENT_POS_angle ]    [   "); Serial.print(currentAbsPosPseudo_float); Serial.println("  ]");
+	Serial.print("[   PSEUDO:"); Serial.print(pseudoID); Serial.print("   ]   [  CURRENT_POS_steps ]    [   "); Serial.print(*currentAbsPosPseudo ); Serial.println("     ]");
+	Serial.print("[   PSEUDO:"); Serial.print(pseudoID); Serial.print("   ]   [   CURRENT_DIR      ]    [   "); Serial.print(*currentDirStatusPseudo); Serial.println("     ]");
+	Serial.println("-----------------------------------------------------------------------------------------------");
+
+} // END FUNCTION: readEEPROMsettingsSlave
 
 // =========================================================================================================== //
 
@@ -1323,7 +1414,7 @@ void PseudoSPIcommMetamorphicManipulator::setupEEPROMslave( int newID, float max
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(int *currentAbsPosPseudo){
+bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci){
 
 	unsigned long homing_stepping_delay = 500;
 
@@ -1341,7 +1432,8 @@ bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(int *currentAbsPo
 	}
 
 	*currentAbsPosPseudo = 0;
-	
+	*currentAbsPosPseudo_ci = 7;
+
 	return true;
 } // END FUNCTION: 
 
