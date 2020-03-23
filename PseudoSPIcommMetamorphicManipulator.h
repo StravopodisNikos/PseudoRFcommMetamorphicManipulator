@@ -304,8 +304,10 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	void setupEEPROMslave(int newID, float max_angle_limit, float min_angle_limit, float pseudoStepAngle);
 
-	byte readInitialStateSlave();
+	bool readCurrentStateSlave( byte *CURRENT_STATE );
 	
+	bool saveCurrentStateSlave( byte *CURRENT_STATE );
+
 	byte connectPseudoSlave();
 
 	bool lockPseudoSlave(byte *CURRENT_STATE);
@@ -344,7 +346,7 @@ class PseudoSPIcommMetamorphicManipulator{
 	int 			_statusLedPin;
 
 	byte singleByteTransfer(byte packet, unsigned long wait_for_response);
-
+	
 	void readCurrentPseudoPosition(float *theta_p_current, int *theta_p_current_steps);
 
 	bool calculateRelativeStepsToMove(float *theta_p_goal, int *RELATIVE_STEPS_TO_MOVE);

@@ -696,7 +696,7 @@ byte PseudoSPIcommMetamorphicManipulator::connectPseudoSlave()
 bool PseudoSPIcommMetamorphicManipulator::readCurrentStateMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE)
 {
 	/*
-	 *  Reads 1 time only for the current state of the pseudo connected in the ssPin specified
+	 *  Reads for the current state of the pseudo connected in the ssPin specified
 	 *  Returns true only if pseudo's initial state is locked
 	 */	
 	bool result;
@@ -710,7 +710,7 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentStateMaster(int pseudoID, i
 
 	do{
 	
-		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CS, eeprom_read_time_micros);
+		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CS, slave_response);
 		
 		if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED))
 		{
@@ -731,19 +731,58 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentStateMaster(int pseudoID, i
 
 // =========================================================================================================== //
 
-byte PseudoSPIcommMetamorphicManipulator::readInitialStateSlave()
+bool PseudoSPIcommMetamorphicManipulator::readCurrentStateSlave( byte *CURRENT_STATE )
 {
 	/*
-	 *  This is the response from readInitialStateMaster.
-	 *  Reads default EEPROM Memory adress and returns the CS
+	 *  This is the response from readCurrentStateMaster.
+	 *  Slave after each metamorphosis execution saves CS to EEPROM memory
+	 *  Each time a meta mode starts/repeats reads the last state of slave
+	 *  Reading CS only expects 3 appropriate returns!!! Otherwise errors!!!
 	 */
 
-	byte PSEUDO_CS;
+	bool result;
 
-	PSEUDO_CS = EEPROM.read(CS_EEPROM_ADDR);
+	*CURRENT_STATE = EEPROM.read(CS_EEPROM_ADDR);
 
-	return PSEUDO_CS;
-} // END FUNCTION: readInitialStateSlave
+	if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT)  )
+	{
+		result = true;
+	}
+	else
+	{
+		result = false;
+	}
+	
+
+	return result;
+} // END FUNCTION: readCurrentStateSlave
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::saveCurrentStateSlave( byte *CURRENT_STATE )
+{
+	/*
+	 *  This function is executed after continueMetaExecutionMaster/REPEAT is executed from Master
+	 *  Saves META_REPEAT to EEPROM memory
+	 */
+
+	bool result;
+
+	if ( (*CURRENT_STATE == STATE_LOCKED) )
+	{
+		*CURRENT_STATE = META_REPEAT;
+
+		EEPROM.update(CS_EEPROM_ADDR, *CURRENT_STATE);
+
+		result = true;
+	}
+	else
+	{
+		result = false;
+	}
+	
+	return result;
+} // END FUNCTION: readCurrentStateSlave
 
 // =========================================================================================================== //
 
@@ -902,21 +941,24 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 	 *  Returns true only if Ready state achieved
 	 */	
 	bool result;
+	
+	//Serial.println("setGoalPositionMaster!!!!!!!!!!!!"); // OKOK
 
-	if ( (*CURRENT_STATE == STATE_LOCKED) ) 	// executes only if pseudo has returned LOCKED
-	{
-		unsigned long slave_response 			= 100*SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
+	if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT)  ) 	// executes only if pseudo has returned LOCKED
+	{		
+		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  		// how much waits inside transfer function
 		unsigned long time_now_micros 			= micros();
 		bool slave_responded_correct_flag		= false;
-		unsigned long eeprom_read_time_micros 	= 3500;  						// 3.5ms (3500μs) for read 
+		unsigned long eeprom_read_time_micros 	= 4000;  						// 3.5ms (3500μs) for read 
 
 		digitalWrite(ssPins[pseudoID-1], LOW);									// enable Pseudo Slave Select pin
 		
 		do{
-			Serial.println("Gamhmeno : ");
 			byte goal_ci_from_master = *GP;
-			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer( goal_ci_from_master, eeprom_read_time_micros);
-			Serial.println(*CURRENT_STATE);
+			Serial.print("goal_ci_from_master = "); Serial.println(goal_ci_from_master);
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer( goal_ci_from_master, 2000);
+			Serial.print("current state = "); Serial.println(*CURRENT_STATE);
+
 			if( (*CURRENT_STATE == STATE_READY) )
 			{
 				slave_responded_correct_flag	= true;
@@ -924,9 +966,10 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 			}
 			else
 			{
+				slave_responded_correct_flag	= false;
 				result = false;
 			}
-
+		delay(500);
 		//}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
 		}while( (!slave_responded_correct_flag) );
 		
@@ -1001,21 +1044,22 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave2( byte *PSEUDO_GO
 	 *  5. Calculates direction
 	 */	
 	bool result;
+	Serial.print("state in setGoalPositionSlave2 = "); Serial.println(*CURRENT_STATE);
 
 	if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) )
 	{
-		Serial.println("PSEUDO_GOAL_POSITION = "); Serial.println(*PSEUDO_GOAL_POSITION);
-		delay(1000);
-
+		//Serial.println("PSEUDO_GOAL_POSITION = "); Serial.println(*PSEUDO_GOAL_POSITION);
+		//delay(1000);
+		Serial.println("Mphka setGoalPositionSlave2");
 		// 3. Reading theta step
-		float step_angle = 0.0000f;
+		//float step_angle = 0.0000f;
 
-		EEPROM.get(STEP_ANGLE_ADDR, step_angle);    				
+		//EEPROM.get(STEP_ANGLE_ADDR, step_angle);    				
 
 		// 4. Delta theta_p (float)
-		float delta_theta_p = step_angle * abs( *PSEUDO_GOAL_POSITION - *currentAbsPosPseudo_ci );
+		//float delta_theta_p = step_angle * abs( *PSEUDO_GOAL_POSITION - *currentAbsPosPseudo_ci );
 
-		//*RELATIVE_STEPS_TO_MOVE = round (delta_theta_p / ag );										// inaccuracies bugs
+		//*RELATIVE_STEPS_TO_MOVE = round (delta_theta_p / ag );// inaccuracies bugs
 
 		*RELATIVE_STEPS_TO_MOVE = METAMORPHOSIS_Ci_STEPS * abs( *PSEUDO_GOAL_POSITION - *currentAbsPosPseudo_ci );
 
@@ -1032,16 +1076,19 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave2( byte *PSEUDO_GO
 		digitalWrite(dirPin_NANO, *currentDirStatusPseudo);
 
 		// Print the results in serial monitor
+		/*
 		Serial.print("[   setGoalPositionSlave2   ]   SUCCESS"); 
-		Serial.println("-----------------------------------------------------------------------------------------------");
+		Serial.println("-------------------------------------");
 		Serial.print("[    CURRENT_POS_ci    ]    [   "); Serial.print(*currentAbsPosPseudo_ci); Serial.println("     ]");
 		Serial.print("[      GOAL_POS_ci     ]    [   "); Serial.print(*PSEUDO_GOAL_POSITION); Serial.println("       ]");
-		Serial.print("[RELATIVE_STEPS_TO_MOVE]    [   "); Serial.print(*RELATIVE_STEPS_TO_MOVE); Serial.println("     ]");
-		Serial.print("[ FLOAT_ANGLE_TO_MOVE  ]    [   "); Serial.print(delta_theta_p); Serial.println("             ]");
+		Serial.print("[RELATIVE_STEPS_TO_MOVE]    [   "); Serial.print(*RELATIVE_STEPS_TO_MOVE); Serial.println(" ]");
+		Serial.print("[ FLOAT_ANGLE_TO_MOVE  ]    [   "); Serial.print(delta_theta_p); Serial.println(" ]");
 		Serial.print("[   DIRECTION_TO_MOVE  ]    [   "); Serial.print(*currentDirStatusPseudo); Serial.println("     ]");
-		Serial.println("-----------------------------------------------------------------------------------------------");
-		//delay(10000);
-		* currentAbsPosPseudo_ci = * PSEUDO_GOAL_POSITION;		// assumes that moveSlave executes successfully and chnages global variable
+		Serial.println("-------------------------------------");
+		delay(10000);
+		*/
+
+		* currentAbsPosPseudo_ci = * PSEUDO_GOAL_POSITION;		// assumes that moveSlave executes successfully and changes global variable
 
 		*CURRENT_STATE = STATE_READY;
 		
@@ -1235,18 +1282,21 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 			
 			if( (*CURRENT_STATE == META_FINISHED) )
 			{
+				Serial.print("STATE RECEIVED : "); Serial.println(*CURRENT_STATE);
 				result = true;
 				*finishMetaMode = true;
 				slave_responded_correct_flag	= true;
 			}
 			else if ( (*CURRENT_STATE == META_REPEAT) )
 			{
+				Serial.print("STATE RECEIVED : "); Serial.println(*CURRENT_STATE);
 				result = true;
 				*finishMetaMode = false;
 				slave_responded_correct_flag	= true;
 			}
 			else
 			{
+				//Serial.println(" Ma giatiiii ???? ");
 				result = false;
 			}	
 
@@ -1279,7 +1329,7 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(byte *CURRENT_
 		EEPROM.update(CD_EEPROM_ADDR, *currentDirStatusPseudo);
 
 		// 2. Save current absolute position in which pseudo is locked after metamorphosis
-		EEPROM.update(CP_EEPROM_ADDR, * currentAbsPosPseudo_ci);
+		EEPROM.update(CP_EEPROM_ADDR, *currentAbsPosPseudo_ci);
 
 		// 3. Save the last state of pseudo(always locked)
 		*CURRENT_STATE = META_FINISHED;
@@ -1300,7 +1350,7 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(byte *CURRENT_
 bool PseudoSPIcommMetamorphicManipulator::repeatMetaSlave(byte *CURRENT_STATE)
 {
 	/*
-	 *	Responds to continueMetaExecutionMaster
+	 *	Responds to continueMetaExecutionMaster/REPEAT -> discontnued by saveCurrentStateSlave
 	 */
 	bool result;
 
@@ -1339,7 +1389,7 @@ void PseudoSPIcommMetamorphicManipulator::readEEPROMsettingsSlave(int pseudoID, 
 	float currentAbsPosPseudo_float = 0.000000f;
 	currentAbsPosPseudo_float = step_angle * (*currentAbsPosPseudo_ci - 1) + min_pseudo_angle;
 
-	*currentAbsPosPseudo = 	round( currentAbsPosPseudo_float / ag);			
+	*currentAbsPosPseudo = abs( 	round( currentAbsPosPseudo_float / ag)    );			
 
 	// 3. Read the saved state
 	*CURRENT_STATE = EEPROM.read(CS_EEPROM_ADDR);
