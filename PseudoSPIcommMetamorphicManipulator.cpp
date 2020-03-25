@@ -933,7 +933,7 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(byte *CURRENT_STATE)
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, int ssPins[], byte * GP, byte *CURRENT_STATE )
+bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, int ssPins[], byte *GP, byte *CURRENT_STATE )
 {
 	/*
 	 *  Orders slave to set Goal Position, GP is specified by user
@@ -954,11 +954,9 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 		digitalWrite(ssPins[pseudoID-1], LOW);									// enable Pseudo Slave Select pin
 		
 		do{
-			byte goal_ci_from_master = *GP;
-			Serial.print("goal_ci_from_master = "); Serial.println(goal_ci_from_master);
-			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer( goal_ci_from_master, 2000);
-			Serial.print("current state = "); Serial.println(*CURRENT_STATE);
 
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer( *GP , slave_response);
+			//Serial.print("current state = "); Serial.println(*CURRENT_STATE);
 			if( (*CURRENT_STATE == STATE_READY) )
 			{
 				slave_responded_correct_flag	= true;
@@ -969,7 +967,7 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 				slave_responded_correct_flag	= false;
 				result = false;
 			}
-		delay(500);
+
 		//}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
 		}while( (!slave_responded_correct_flag) );
 		
@@ -1033,7 +1031,7 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave( byte *PSEUDO_GOA
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte * currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte * currentDirStatusPseudo, byte *CURRENT_STATE )
+bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte *currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte *currentDirStatusPseudo, byte *CURRENT_STATE )
 {
 	/*
 	 *  Respond to setGoalPositionMaster, to execute pseudo must be locked = > Set number of relative steps to move and direction !!!
@@ -1088,7 +1086,7 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave2( byte *PSEUDO_GO
 		delay(10000);
 		*/
 
-		* currentAbsPosPseudo_ci = * PSEUDO_GOAL_POSITION;		// assumes that moveSlave executes successfully and changes global variable
+		*currentAbsPosPseudo_ci = *PSEUDO_GOAL_POSITION;		// assumes that moveSlave executes successfully and changes global variable
 
 		*CURRENT_STATE = STATE_READY;
 		
@@ -1477,12 +1475,12 @@ bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(int *currentAbsPo
 		digitalWrite(stepPin_NANO, HIGH);
     	while(micros() < time_now_micros + homing_stepping_delay){}                   //wait approx. [μs]
     	digitalWrite(stepPin_NANO, LOW);
-
-		Serial.println("STEPPER HOMING");
 	}
 
-	*currentAbsPosPseudo = 0;
-	*currentAbsPosPseudo_ci = 7;
+	Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(STATE_IN_POSITION_STRING); Serial.println("   ]");          
+
+	*currentAbsPosPseudo 	= 0;
+	*currentAbsPosPseudo_ci = 7; // for 15deg angle step only
 
 	return true;
 } // END FUNCTION: 

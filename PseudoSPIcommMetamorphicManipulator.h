@@ -40,6 +40,7 @@ const byte interruptPin 	= 2;
 
 // COMMANDS SENT -> in single byte transfer each ci is regarded as command!
 // ci's: these are the bytes given to setGoalPositionMaster() for desired anatomy Metamorphosis
+#define junk_command		0
 
 #define c1					1
 #define c2					2
