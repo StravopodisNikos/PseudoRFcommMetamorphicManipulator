@@ -6,16 +6,22 @@
 
 // Default includes for driving pseudojoint steppers
 #include "Arduino.h"
-#include <printf.h>
+//#include <printf.h>
 #include "PseudoSPIcommMetamorphicManipulator.h"
 //#include <Eventually.h>
 
 // For RF PseudoCommunication
-#include <SPI.h>
-#include <EEPROM.h>
-#include <RF24.h>
-#include <nRF24L01.h>
-#include <RF24_config.h>
+//#include <SPI.h>
+//#include <EEPROM.h>
+//#include <RF24.h>
+//#include <nRF24L01.h>
+//#include <RF24_config.h>
+
+// Include Motor Configuration files from folder ~/Arduino/libraries/test_metamorphic_manipulator_configuration
+#include <definitions.h>                            
+#include <motorIDs.h>                               
+#include <contolTableItems_LimitValues.h>
+#include <StepperMotorSettings.h>
 
 // Addresses
 typedef const byte typeAddresses[ADDRESS_WIDTH]; 
@@ -844,7 +850,7 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoSlave(byte *CURRENT_STATE)
 
 	if((*CURRENT_STATE == IN_POSITION))		// check current state
 	{
-		digitalWrite(RELAY_lock_Pin, LOW);       // locks when NO connected
+		digitalWrite(RELAY_lock_Pin, LOW);       //default:LOW: locks when NO connected 
 		
 		*CURRENT_STATE = STATE_LOCKED;		// Change state
 
@@ -917,7 +923,7 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(byte *CURRENT_STATE)
 
 	if((*CURRENT_STATE == STATE_READY))				// check current state
 	{
-		digitalWrite(RELAY_lock_Pin, HIGH);      	// unlocks when NO connected
+		digitalWrite(RELAY_lock_Pin, HIGH);      	// DEFAULT: HIGH : unlocks when NO connected
 		
 		*CURRENT_STATE = STATE_UNLOCKED;			// Change state
 

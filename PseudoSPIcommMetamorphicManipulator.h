@@ -7,113 +7,16 @@
 #ifndef PseudoSPIcommMetamorphicManipulator_h
 #define PseudoSPIcommMetamorphicManipulator_h
 
-#define SERIAL_BAUDRATE		115200
-
-// PINS CONFIGURATION MASTER
-const byte interruptPin 	= 2;
-
-// PINS CONFIGURATION SLAVE
-#define MOSI_NANO 			11
-#define MISO_NANO 			12
-#define SCK_NANO 			13
-#define TXled_Pin 			7
-#define RXled_Pin 			6
-#define statusLED_Pin		2		// indicates master-pseudo com status
-#define dirPin_NANO			A5
-#define stepPin_NANO		A4
-#define enabPin_NANO		A3
-#define hallSwitch_Pin		A1
-#define RELAY_lock_Pin		A0
-
-#define SSpinPseudo1		3
-#define SSpinPseudo2		4
-#define SSpinPseudo3		5
-
-#define PSEUDO1_ID 			1
-#define PSEUDO2_ID 			2
-#define PSEUDO3_ID 			3
-#define PSEUDO4_ID 			4
-#define PSEUDO5_ID 			5
-#define PSEUDO6_ID 			6
-
-#define ADDRESS_WIDTH		6
-
-// COMMANDS SENT -> in single byte transfer each ci is regarded as command!
-// ci's: these are the bytes given to setGoalPositionMaster() for desired anatomy Metamorphosis
-#define junk_command		0
-
-#define c1					1
-#define c2					2
-#define c3					3
-#define c4					4
-#define c5					5	
-#define c6					6
-#define c7					7
-#define c8					8
-#define c9					9	
-#define c10					10
-#define c11					11
-#define c12					12
-#define c13					13
-
-#define CMD_LOCK		    20
-#define CMD_UNLOCK	    	21
-#define CMD_SGP	  			30		// In single byte transfer is overrided
-#define CMD_MOVE			40
-#define CMD_STOP			41		// Danger Stop Event!
-#define CMD_HOME			42	
-#define CMD_CONNECT		    60
-#define CMD_GIVE_IS		    70
-#define CMD_GIVE_CS		    71
-#define CMD_EXIT_META_EXEC  80
-#define CMD_CONT_META_EXEC  81
-#define CMD_GIVE_EEPROM	    90		// only at setup
-
-// STATES RETURNED
-#define STATE_LOCKED 	  	100
-#define STATE_UNLOCKED 		110
-#define IN_POSITION 		111
-#define IS_MOVING 			112
-#define TALKED_DONE			113
-#define IS_TALKING 			114
-#define STATE_READY			115
-#define GP_SET				116
-#define META_FINISHED		117
-#define META_REPEAT			118
-
-#define PSEUDO_NUMBER1 		1
-#define PSEUDO_NUMBER2		2
-#define PSEUDO_NUMBER3		3
-#define PSEUDO_NUMBER4		4
-#define PSEUDO_NUMBER5		5
-#define PSEUDO_NUMBER6		6
-
-#define MASTER_DELAY_TIME	100
-#define SLAVE_DELAY_TIME	5
-#define SLAVE_RESPONSE_TIME	20
-
-#define GEAR_FACTOR				60
-#define spr						800			// Depends on driver dip switches
-#define METAMORPHOSIS_Ci_STEPS	2000		// calculated using formula: (step_angle_deg/360) * spr * GEAR_FACTOR
-
-// EEPROM AREA ADDRESSES [0~255]
-#define ID_EEPROM_ADDR		0		// int
-#define MAX_POS_LIM_ADDR	10		// float
-#define MIN_POS_LIM_ADDR	20		// float
-#define STEP_ANGLE_ADDR		30		// float
-#define CS_EEPROM_ADDR		40		// byte			// Always updated with homing
-#define CP_EEPROM_ADDR		50		// byte			// ...
-#define CD_EEPROM_ADDR		60		// uint32_t		// ...
-
 // Default includes for driving pseudojoint steppers
 #include "Arduino.h"
 
 // For RF PseudoCommunication
-#include <SPI.h>
+#include "SPI.h"
 #include <EEPROM.h>
 #include <RF24.h>
 #include <nRF24L01.h>
 #include <RF24_config.h>
+#include <definitions.h> 
 //#include <Eventually.h>
 
 // External Variables
@@ -158,7 +61,7 @@ const char HOMING[]					= "HOMING";
 const char EXIT_METAMORPHOSIS[]		= "EXIT_METAMORPHOSIS";
 const char REPEAT_METAMORPHOSIS[]	= "REPEAT_METAMORPHOSIS";
 
-const float ag  = ( 2 * PI ) / ( GEAR_FACTOR * spr ); 		// Geared Motor Step Angle(Angular Position of Output shaft of Gearbox )[rad]
+const float ag  = ( 2 * PI ) / ( GEAR_FACTOR_PSEUDO1 * SPR_PSEUDO1 ); 		// Geared Motor Step Angle(Angular Position of Output shaft of Gearbox )[rad]
 const float min_pseudo_angle = -PI/2;
 
 const unsigned long wait_total_response_time_micros = 4000;  //250
