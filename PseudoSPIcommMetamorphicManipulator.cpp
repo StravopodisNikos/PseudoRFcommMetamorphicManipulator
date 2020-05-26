@@ -1492,3 +1492,66 @@ bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(int *currentAbsPo
 } // END FUNCTION: 
 
 // =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomyMaster(int pseudoID, int ssPins[], byte CURRENT_ANATOMY[] )
+{
+	/*
+	 *  Reads for the current Ci of the pseudo connected in the ssPin specified
+	 *  Returns true only if pseudo's Ci is successfully received
+	 */	
+	bool result;
+
+	unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
+	unsigned long time_now_micros 			= micros();
+	bool slave_responded_correct_flag		= false;
+	unsigned long eeprom_read_time_micros 	= 3500;  					// 3.5ms (3500μs) for read 
+
+	digitalWrite(ssPins[pseudoID-1], LOW);				// enable Pseudo Slave Select pin
+
+	do{
+	
+		CURRENT_ANATOMY[pseudoID-1] = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CP, slave_response);
+		
+		if( (CURRENT_ANATOMY[pseudoID-1] >= c1)  && (CURRENT_ANATOMY[pseudoID-1] >= c13))
+		{
+			slave_responded_correct_flag = true;
+			result = true;
+		}
+		else
+		{
+			result = false;
+		}
+		
+	}while( (!slave_responded_correct_flag) );
+
+	digitalWrite(ssPins[pseudoID-1], HIGH);				// disable Pseudo Slave Select pin
+
+	return result;	
+} // END FUNCTION: readCurrentAnatomyMaster
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomySlave( byte *CURRENT_Ci )
+{
+	/*
+	 *  This is the response from readCurrentStateMaster.
+	 *  Slave after each metamorphosis execution saves CS to EEPROM memory
+	 *  Each time a meta mode starts/repeats reads the last state of slave
+	 *  Reading CS only expects 3 appropriate returns!!! Otherwise errors!!!
+	 */
+
+	bool result;
+
+	*CURRENT_Ci = EEPROM.read(CP_EEPROM_ADDR);
+
+	if( (*CURRENT_Ci >= c1)  && (*CURRENT_Ci >= c13))
+	{
+		result = true;
+	}
+	else
+	{
+		result = false;
+	}
+	
+	return result;
+} // END FUNCTION: readCurrentAnatomySlave

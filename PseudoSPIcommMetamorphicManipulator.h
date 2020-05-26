@@ -204,6 +204,8 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, byte *CURRENT_STATE );
 
+	bool readCurrentAnatomyMaster(int pseudoID, int ssPins[], byte currentAnatomy[]);
+	
 	/*  *Slave*  */
 
 	void setupEEPROMslave(int newID, float max_angle_limit, float min_angle_limit, float pseudoStepAngle);
@@ -236,6 +238,7 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool setHomePositionSlave( int * currentAbsPosPseudo, byte *currentAbsPosPseudo_ci);
 
+	bool readCurrentAnatomySlave( byte *CURRENT_Ci );
 	private:
 
 	int 			_pseudoID;
