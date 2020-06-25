@@ -13,9 +13,9 @@
 // For RF PseudoCommunication
 #include "SPI.h"
 #include <EEPROM.h>
-#include <RF24.h>
-#include <nRF24L01.h>
-#include <RF24_config.h>
+//#include <RF24.h>
+//#include <nRF24L01.h>
+//#include <RF24_config.h>
 #include <definitions.h> 
 //#include <Eventually.h>
 
@@ -30,7 +30,10 @@ extern bool metaExecution;				// ...
 extern bool slave_responded_correct_flag;
 
 extern byte CURRENT_STATE[];
+extern byte CURRENT_ANATOMY[];
 extern byte PSEUDO_CURRENT_POSITION;
+extern bool homingHallActivated;
+extern bool limitHallActivated;
 
 extern float theta_p_current;
 extern float theta_p_goal;
@@ -86,6 +89,7 @@ typedef union aliasPacketReceivedUnion{
   unsigned char bytes[sizeof(packets)];
 }packets_u;
 
+/*
 class PseudoRFcommMetamorphicManipulator
 {
 	public:
@@ -109,6 +113,7 @@ class PseudoRFcommMetamorphicManipulator
 	};
 	
 	// Constructor
+	
 	PseudoRFcommMetamorphicManipulator(RF24 RADIO, int pseudoID, int csnPin, int cePin, int misoPin, int mosiPin, int txLedPin, int rxLedPin);
 	
 	// sets MASTER to Tx mode and SLAVE to Rx mode
@@ -144,7 +149,7 @@ class PseudoRFcommMetamorphicManipulator
 	int _rxLedPin;
 	
 };
-
+*/
 class PseudoSPIcommMetamorphicManipulator{
 
 	public:
@@ -234,11 +239,12 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	void txrxLEDSblink( int number_of_blinks, unsigned long blink_for_ms);
 	
-	bool movePseudoSlave(  byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
+	bool movePseudoSlave( byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
 
-	bool setHomePositionSlave( int * currentAbsPosPseudo, byte *currentAbsPosPseudo_ci);
+	bool setHomePositionSlave(byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, bool *homingHallActivated_local, bool *limitHallActivated_local);
 
 	bool readCurrentAnatomySlave( byte *CURRENT_Ci );
+	
 	private:
 
 	int 			_pseudoID;

@@ -29,7 +29,7 @@ typedef const byte typeAddresses[ADDRESS_WIDTH];
 /*
  *  FUNCTIONS FOR PseudoRFcommMetamorphicManipulator CLASS
  */
-
+/*
 // Constructor
 PseudoRFcommMetamorphicManipulator::PseudoRFcommMetamorphicManipulator(RF24 RADIO, int pseudoID, int csnPin, int cePin, int misoPin, int mosiPin, int txLedPin, int rxLedPin)
 {
@@ -491,14 +491,15 @@ bool PseudoRFcommMetamorphicManipulator::readCommandPseudoPacket(RF24 LISTENER, 
 
 // =========================================================================================================== //
 
+
 bool PseudoRFcommMetamorphicManipulator::execTxRxBlockMaster(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[], int command_code, int * state_code )
 {
-	/*
-	 *  Master becomes Tx -> Sets Slave to Rx
-	 *  Master writes command_code
-	 *  Waits until Slave responds with state_code
-	 *  Return TRUE if the appropriate response is received
-	 */
+	//
+	//  Master becomes Tx -> Sets Slave to Rx
+	//  Master writes command_code
+	//  Waits until Slave responds with state_code
+	//  Return TRUE if the appropriate response is received
+	//
 
 	// I. Set Master to Tx
 
@@ -531,7 +532,7 @@ bool PseudoRFcommMetamorphicManipulator::execTxRxBlockMaster(RF24 OBJECT, uint8_
 
 
 } // END FUNCTION
-
+*/
 // =========================================================================================================== //
 
 /*
@@ -851,7 +852,8 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoSlave(byte *CURRENT_STATE)
 	if((*CURRENT_STATE == IN_POSITION))		// check current state
 	{
 		digitalWrite(RELAY_lock_Pin, LOW);       //default:LOW: locks when NO connected 
-		
+		digitalWrite(RELAY_lock_Pin2, LOW);
+
 		*CURRENT_STATE = STATE_LOCKED;		// Change state
 
 		result = true;
@@ -924,7 +926,8 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(byte *CURRENT_STATE)
 	if((*CURRENT_STATE == STATE_READY))				// check current state
 	{
 		digitalWrite(RELAY_lock_Pin, HIGH);      	// DEFAULT: HIGH : unlocks when NO connected
-		
+		digitalWrite(RELAY_lock_Pin2, HIGH);
+
 		*CURRENT_STATE = STATE_UNLOCKED;			// Change state
 
 		result = true;
@@ -1468,25 +1471,78 @@ void PseudoSPIcommMetamorphicManipulator::setupEEPROMslave( int newID, float max
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci){
+bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(byte *CURRENT_STATE ,int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, bool *homingHallActivated, bool *limitHallActivated){
+
+	byte MOTOR_DIRECTION = *currentDirStatusPseudo;
+	int homing_calibration_steps;
+	bool HOMING_PSEUDO = true;
 
 	unsigned long homing_stepping_delay = 500;
 
 	Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(HOMING); Serial.println("   ]");          
-		
-	while( (digitalRead(hallSwitch_Pin) == LOW ) )
+
+	digitalWrite(RELAY_lock_Pin, LOW);      							// DEFAULT: HIGH : unlocks when NO connected
+	//delay(100);
+	digitalWrite(RELAY_lock_Pin2, LOW);
+	//delay(100);
+
+	while (HOMING_PSEUDO)
 	{                                                                        
 		time_now_micros = micros();
 
+		// Step motor
 		digitalWrite(stepPin_NANO, HIGH);
-    	while(micros() < time_now_micros + homing_stepping_delay){}                   //wait approx. [μs]
+    	while(micros() < time_now_micros + homing_stepping_delay){}   	// wait approx. [μs]
     	digitalWrite(stepPin_NANO, LOW);
+
+		if( digitalRead(pseudoLimitSwitch_Pin) == HIGH )
+		{
+			*limitHallActivated = true;
+		}
+
+		if( digitalRead(hallSwitch_Pin) == HIGH )
+		{
+			*homingHallActivated = true;
+		}
+
+		if (*limitHallActivated)
+		{
+			// Change DIR Pin status
+			digitalWrite(dirPin_NANO, !MOTOR_DIRECTION);
+			MOTOR_DIRECTION = !MOTOR_DIRECTION;
+			*limitHallActivated = false;
+		}
+
+		if (*homingHallActivated)
+		{
+			Serial.println("HOME HALL SENSOR ACTIVATED");
+
+			for (size_t homing_calibration_steps = 0; homing_calibration_steps < HOMING_CALIBRATION_LIMIT; homing_calibration_steps++)
+			{
+				time_now_micros = micros();
+				digitalWrite(stepPin_NANO, HIGH);
+				while(micros() < time_now_micros + homing_stepping_delay){}   	// wait approx. [μs]
+				digitalWrite(stepPin_NANO, LOW);
+				Serial.println(homing_calibration_steps);
+			}
+			
+			HOMING_PSEUDO = false;
+			*homingHallActivated = false;
+		}
+
 	}
+
+	digitalWrite(RELAY_lock_Pin, HIGH);
+	//delay(100);
+	digitalWrite(RELAY_lock_Pin2, HIGH);
+	//delay(100);
 
 	Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(STATE_IN_POSITION_STRING); Serial.println("   ]");          
 
 	*currentAbsPosPseudo 	= 0;
-	*currentAbsPosPseudo_ci = 7; // for 15deg angle step only
+	*currentAbsPosPseudo_ci = 7; 										// for 15deg angle step only
+	*CURRENT_STATE 			= STATE_LOCKED;
+	*currentDirStatusPseudo = !MOTOR_DIRECTION;
 
 	return true;
 } // END FUNCTION: 
