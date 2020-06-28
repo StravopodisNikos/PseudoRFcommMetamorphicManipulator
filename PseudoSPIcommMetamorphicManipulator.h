@@ -29,11 +29,12 @@ extern bool END_METAMORPHOSIS;					// flag to control loop for Metamorphosis <OP
 extern bool metaExecution;				// ...
 extern bool slave_responded_correct_flag;
 
-extern byte CURRENT_STATE[];
+extern volatile byte CURRENT_STATE_MASTER[];
+//volatile byte CURRENT_STATE;
 extern byte CURRENT_ANATOMY[];
 extern byte PSEUDO_CURRENT_POSITION;
-extern bool homingHallActivated;
-extern bool limitHallActivated;
+extern volatile bool homingHallActivated;
+extern volatile bool limitHallActivated;
 
 extern float theta_p_current;
 extern float theta_p_goal;
@@ -53,6 +54,7 @@ extern float step_angle;
 
 // Constants
 const char STATE_LOCKED_STRING[] 	= "LOCKED";
+const char STATE_HOMED_STRING[] 	= "HOMED";
 const char STATE_UNLOCKED_STRING[] 	= "UNLOCKED";
 const char STATE_IN_POSITION_STRING[] = "IN_POSITION"; 
 const char COMMAND_LOCK_STRING[] 	= "LOCK";
@@ -197,51 +199,52 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool connectPseudoMaster(int pseudoID, int ssPins[]);
 	
-	bool readCurrentStateMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE  );
+	bool readCurrentStateMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
 
-	bool lockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
+	bool lockPseudoMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
 
-	bool unlockPseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
+	bool unlockPseudoMaster(int pseudoID, int ssPins[],volatile byte *CURRENT_STATE );
 	
-	bool setGoalPositionMaster(int pseudoID, int ssPins[], byte * GP, byte *CURRENT_STATE );
+	bool setGoalPositionMaster(int pseudoID, int ssPins[], byte * GP, volatile byte *CURRENT_STATE );
 
-	bool movePseudoMaster(int pseudoID, int ssPins[], byte *CURRENT_STATE );
+	bool movePseudoMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
 
-	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, byte *CURRENT_STATE );
+	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, volatile byte *CURRENT_STATE );
 
 	bool readCurrentAnatomyMaster(int pseudoID, int ssPins[], byte currentAnatomy[]);
 	
+	bool setHomePositionMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
 	/*  *Slave*  */
 
 	void setupEEPROMslave(int newID, float max_angle_limit, float min_angle_limit, float pseudoStepAngle);
 
-	bool readCurrentStateSlave( byte *CURRENT_STATE );
+	bool readCurrentStateSlave(volatile byte *CURRENT_STATE );
 	
-	bool saveCurrentStateSlave( byte *CURRENT_STATE );
+	bool saveCurrentStateSlave(volatile byte *CURRENT_STATE );
 
 	byte connectPseudoSlave();
 
-	bool lockPseudoSlave(byte *CURRENT_STATE);
+	bool lockPseudoSlave(volatile byte *CURRENT_STATE);
 	
-	bool unlockPseudoSlave(byte *CURRENT_STATE);
+	bool unlockPseudoSlave(volatile byte *CURRENT_STATE);
 
-	bool setGoalPositionSlave(byte *PSEUDO_GOAL_POSITION, int *RELATIVE_STEPS_TO_MOVE, byte *CURRENT_STATE);
+	bool setGoalPositionSlave(byte *PSEUDO_GOAL_POSITION, int *RELATIVE_STEPS_TO_MOVE,volatile byte *CURRENT_STATE);
 
-	bool setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte * currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte * currentDirStatusPseudo, byte *CURRENT_STATE );
+	bool setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte * currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte * currentDirStatusPseudo, volatile byte *CURRENT_STATE );
 
-	bool saveEEPROMsettingsSlave(byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo);
+	bool saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo);
 
-	bool repeatMetaSlave(byte *CURRENT_STATE);
+	bool repeatMetaSlave(volatile byte *CURRENT_STATE);
 
-	void readEEPROMsettingsSlave(int pseudoID, byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci,  byte *currentDirStatusPseudo, int *currentAbsPosPseudo);
+	void readEEPROMsettingsSlave(int pseudoID, volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci,  byte *currentDirStatusPseudo, int *currentAbsPosPseudo);
 
 	void statusLEDblink( int number_of_blinks, unsigned long blink_for_ms);
 
 	void txrxLEDSblink( int number_of_blinks, unsigned long blink_for_ms);
 	
-	bool movePseudoSlave( byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
+	bool movePseudoSlave(volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
 
-	bool setHomePositionSlave(byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, bool *homingHallActivated_local, bool *limitHallActivated_local);
+	bool setHomePositionSlave(volatile byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated_local, volatile bool *limitHallActivated_local);
 
 	bool readCurrentAnatomySlave( byte *CURRENT_Ci );
 	
