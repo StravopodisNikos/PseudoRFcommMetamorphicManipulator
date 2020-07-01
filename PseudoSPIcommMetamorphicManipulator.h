@@ -31,8 +31,9 @@ extern bool slave_responded_correct_flag;
 
 extern volatile byte CURRENT_STATE_MASTER[];
 //volatile byte CURRENT_STATE;
-extern byte CURRENT_ANATOMY[];
-extern byte PSEUDO_CURRENT_POSITION;
+extern volatile byte CURRENT_ANATOMY[];
+extern volatile byte CURRENT_Ci_IDENTITY;
+extern volatile byte PSEUDO_CURRENT_POSITION;
 extern volatile bool homingHallActivated;
 extern volatile bool limitHallActivated;
 
@@ -211,9 +212,11 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, volatile byte *CURRENT_STATE );
 
-	bool readCurrentAnatomyMaster(int pseudoID, int ssPins[], byte currentAnatomy[]);
+	bool readCurrentAnatomyMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY);
 	
 	bool setHomePositionMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
+	
+	bool saveEEPROMsettingsMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
 	/*  *Slave*  */
 
 	void setupEEPROMslave(int newID, float max_angle_limit, float min_angle_limit, float pseudoStepAngle);
@@ -246,7 +249,7 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool setHomePositionSlave(volatile byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated_local, volatile bool *limitHallActivated_local);
 
-	bool readCurrentAnatomySlave( byte *CURRENT_Ci );
+	bool readCurrentAnatomySlave( volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY );
 	
 	private:
 

@@ -661,9 +661,7 @@ bool PseudoSPIcommMetamorphicManipulator::connectPseudoMaster(int pseudoID, int 
 	digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
 
 	do{
-
 		receivedID = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_CONNECT, eeprom_read_time_micros);
-		
 		if( pseudoID == (int) receivedID)
 		{
 			slave_responded_correct_flag = true;
@@ -716,10 +714,11 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentStateMaster(int pseudoID, i
 	digitalWrite(ssPins[pseudoID-1], LOW);				// enable Pseudo Slave Select pin
 
 	do{
-	
+		//Serial.print("I read state in readCurrentStateMaster to start meta: "); Serial.println(*CURRENT_STATE);
+
 		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CS, slave_response);
 		
-		if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED))
+		if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == IN_POSITION) )
 		{
 			slave_responded_correct_flag = true;
 			result = true;
@@ -751,7 +750,7 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentStateSlave(volatile byte *C
 
 	*CURRENT_STATE = EEPROM.read(CS_EEPROM_ADDR);
 
-	if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT)  )
+	if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == IN_POSITION) )
 	{
 		result = true;
 	}
@@ -848,7 +847,6 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoSlave(volatile byte *CURRENT
 	 *  2. Controls the relay of lock pin
 	 *  3. Returns the new state
 	 */
-
 	if((*CURRENT_STATE == IN_POSITION))		// check current state
 	{
 		digitalWrite(RELAY_lock_Pin, HIGH);        
@@ -876,7 +874,7 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoMaster(int pseudoID, int s
 	 */	
 	bool result;
 
-	if((*CURRENT_STATE == STATE_READY))										// check current state
+	if((*CURRENT_STATE == STATE_READY) || (*CURRENT_STATE == META_FINISHED))										// check current state
 	{
 		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
 		unsigned long time_now_micros 			= micros();
@@ -925,7 +923,7 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(volatile byte *CURRE
 	bool result;
 	Serial.println(*CURRENT_STATE);
 
-	if((*CURRENT_STATE == STATE_READY) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED) )				// check current state
+	if((*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == STATE_READY) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED) )				// check current state
 	{
 		digitalWrite(RELAY_lock_Pin, LOW);      	
 		digitalWrite(RELAY_lock_Pin2, LOW);
@@ -1053,13 +1051,13 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave2( byte *PSEUDO_GO
 	 *  5. Calculates direction
 	 */	
 	bool result;
-	Serial.print("state in setGoalPositionSlave2 = "); Serial.println(*CURRENT_STATE);
+	//Serial.print("state in setGoalPositionSlave2 = "); Serial.println(*CURRENT_STATE);
 
 	if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) )
 	{
 		//Serial.println("PSEUDO_GOAL_POSITION = "); Serial.println(*PSEUDO_GOAL_POSITION);
 		//delay(1000);
-		Serial.println("Mphka setGoalPositionSlave2");
+		//Serial.println("Mphka setGoalPositionSlave2");
 		// 3. Reading theta step
 		//float step_angle = 0.0000f;
 
@@ -1098,6 +1096,15 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave2( byte *PSEUDO_GO
 		*/
 
 		*currentAbsPosPseudo_ci = *PSEUDO_GOAL_POSITION;		// assumes that moveSlave executes successfully and changes global variable
+
+		//Added on 30.6->
+		EEPROM.update(CD_EEPROM_ADDR, *currentDirStatusPseudo);
+		Serial.println("[INFO]  SAVED	[	CD	]	TO 	EEPROM");
+
+		// 2. Save current absolute position in which pseudo is locked after metamorphosis
+		EEPROM.update(CP_EEPROM_ADDR, *currentAbsPosPseudo_ci);
+		Serial.println("[INFO]  SAVED	[	CP	] 	TO 	EEPROM");
+		//<-
 
 		*CURRENT_STATE = STATE_READY;
 		
@@ -1282,6 +1289,7 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
 		unsigned long time_now_micros 			= micros();
 		bool slave_responded_correct_flag		= false;
+		unsigned long waiting 	= 15000;  					
 
 		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
 
@@ -1305,11 +1313,11 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 			}
 			else
 			{
-				//Serial.println(" Ma giatiiii ???? ");
 				result = false;
 			}	
+		Serial.println("edw");
+		Serial.println(*CURRENT_STATE);
 
-		//}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
 		}while( (!slave_responded_correct_flag) );
 
 		digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
@@ -1325,36 +1333,86 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 
 // =========================================================================================================== //
 
+bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  )
+{
+	/*
+	 *  Orders slave to lock only if is in position
+	 *  Returns true only if locked achieved
+	 */	
+	bool result;
+
+	if (*CURRENT_STATE == STATE_LOCKED) 
+	{
+		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
+		unsigned long time_now_micros 			= micros();
+		bool slave_responded_correct_flag		= false;
+		unsigned long eeprom_read_time_micros 	= 3500;  					// 3.5ms (3500μs) for read 
+
+		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
+
+		do{
+			Serial.print("Mphka saveEEPROMsettingsMaster(MUST BE 100)"); Serial.println(*CURRENT_STATE);
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_SAVE_EEPROM, slave_response);
+
+			if( (*CURRENT_STATE == META_FINISHED) )
+			{
+				slave_responded_correct_flag = true;
+				result = true;
+			}
+			else
+			{
+				result = false;
+			}	
+		//}while( (micros() < time_now_micros + wait_total_response_time_micros) && (!slave_responded_correct_flag) );
+		}while( (!slave_responded_correct_flag) );
+
+		digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
+
+	}
+	else
+	{
+		result =  false;
+	}
+	
+
+	return result;
+} // END FUNCTION: lockPseudoMaster
+
+// =========================================================================================================== //
+
 bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo)
 {
 	/*
 	 *	Responds to continueMetaExecutionMaster
 	 */
 	bool result;
+	Serial.print("State in saveEEPROMsettingsSlave"); Serial.println(*CURRENT_STATE);
 
-	if( (*CURRENT_STATE == STATE_LOCKED) )
-	{	
+	//if( (*CURRENT_STATE == STATE_LOCKED) )
+	for (size_t one_time_counter = 0; one_time_counter < 1; one_time_counter++)
+	{
 		// 1. Save the dirPin status
 		EEPROM.update(CD_EEPROM_ADDR, *currentDirStatusPseudo);
+		Serial.println("[INFO]  SAVED	[	CD	] 	TO 	EEPROM");
 
 		// 2. Save current absolute position in which pseudo is locked after metamorphosis
 		EEPROM.update(CP_EEPROM_ADDR, *currentAbsPosPseudo_ci);
+		Serial.println("[INFO]  SAVED	[	CP	] 	TO 	EEPROM");
 
-		// 3. Save the last state of pseudo(always locked)
+		// 3. Save the last state of pseudo(always meta finished in order to save)
+		EEPROM.update(CS_EEPROM_ADDR, META_FINISHED);
+		Serial.println("[INFO]  SAVED	[	CS	] 	TO 	EEPROM");
+
 		*CURRENT_STATE = META_FINISHED;
-
-		EEPROM.update(CS_EEPROM_ADDR, *CURRENT_STATE);
 
 		result = true;
 	}
-	else
-	{
-		result = false;
-	}
-	
+
 	return result;
 
 } // END FUNCTION: saveEEPROMsettingsSlave
+
+// =========================================================================================================== //
 
 bool PseudoSPIcommMetamorphicManipulator::repeatMetaSlave( volatile byte *CURRENT_STATE)
 {
@@ -1551,7 +1609,7 @@ bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(volatile byte *CU
 			digitalWrite(stepPin_NANO, LOW);
 
 	// next if's are commented since ISR is used
-	/*
+	///*
 			if( digitalRead(pseudoLimitSwitch_Pin) == HIGH )
 			{
 				*limitHallActivated = true;
@@ -1561,7 +1619,7 @@ bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(volatile byte *CU
 			{
 				*homingHallActivated = true;
 			}
-	*/
+	//*/
 			if (*limitHallActivated)
 			{
 				Serial.println("MIN/MAX LIMIT HALL SENSOR ACTIVATED");
@@ -1601,6 +1659,9 @@ bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(volatile byte *CU
 		*CURRENT_STATE 			= IN_POSITION;
 		*currentDirStatusPseudo = MOTOR_DIRECTION;
 
+		EEPROM.update(CP_EEPROM_ADDR, *currentAbsPosPseudo_ci);
+		Serial.println("[INFO]  SAVED	[	CP	] 	TO 	EEPROM");
+
 		result = true;
 	}
 	else
@@ -1613,7 +1674,7 @@ bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(volatile byte *CU
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomyMaster(int pseudoID, int ssPins[], byte CURRENT_ANATOMY[] )
+bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomyMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY)
 {
 	/*
 	 *  Reads for the current Ci of the pseudo connected in the ssPin specified
@@ -1630,28 +1691,91 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomyMaster(int pseudoID,
 
 	do{
 	
-		CURRENT_ANATOMY[pseudoID-1] = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CP, slave_response);
-		
-		if( (CURRENT_ANATOMY[pseudoID-1] >= c1)  && (CURRENT_ANATOMY[pseudoID-1] <= c13))
+		//CURRENT_ANATOMY[pseudoID-1] = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CP, 5000);
+		*CURRENT_Ci_IDENTITY = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CP, slave_response);
+
+		switch (*CURRENT_Ci_IDENTITY)
 		{
+		case slave_is_at_c1:
+			*CURRENT_Ci = c1;
 			slave_responded_correct_flag = true;
-			result = true;
+			break;
+		case slave_is_at_c2:
+			*CURRENT_Ci = c2;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c3:
+			*CURRENT_Ci = c3;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c4:
+			*CURRENT_Ci = c4;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c5:
+			*CURRENT_Ci = c5;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c6:
+			*CURRENT_Ci = c6;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c7:
+			*CURRENT_Ci = c7;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c8:
+			*CURRENT_Ci = c8;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c9:
+			*CURRENT_Ci = c9;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c10:
+			*CURRENT_Ci = c10;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c11:
+			*CURRENT_Ci = c11;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c12:
+			*CURRENT_Ci = c12;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c13:
+			*CURRENT_Ci = c13;
+			slave_responded_correct_flag = true;
+			break;
+
+		default:
+			*CURRENT_Ci = wrong_ci;
+			//Serial.println("WRONG Ci inside readCurrentAnatomyMaster!");
+			slave_responded_correct_flag = false;
+			break;
 		}
-		else
-		{
-			result = false;
-		}
-		
+
 	}while( (!slave_responded_correct_flag) );
 
 	digitalWrite(ssPins[pseudoID-1], HIGH);				// disable Pseudo Slave Select pin
+
+	if( (*CURRENT_Ci >= c1)  && (*CURRENT_Ci  <= c13))
+	{
+		//Serial.print("ci given by slave inside readCurrentAnatomyMaster:"); Serial.println(*CURRENT_Ci);
+		result = true;
+	}
+	else
+	{
+		result = false;
+	}
 
 	return result;	
 } // END FUNCTION: readCurrentAnatomyMaster
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomySlave( byte *CURRENT_Ci )
+bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomySlave(volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY )
 {
 	/*
 	 *  This is the response from readCurrentStateMaster.
@@ -1663,7 +1787,9 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomySlave( byte *CURRENT
 	bool result;
 
 	*CURRENT_Ci = EEPROM.read(CP_EEPROM_ADDR);
+	Serial.print("I read this current ci from my eeprom:"); Serial.println(*CURRENT_Ci);
 
+/*
 	if( (*CURRENT_Ci >= c1)  && (*CURRENT_Ci <= c13))
 	{
 		result = true;
@@ -1672,6 +1798,69 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomySlave( byte *CURRENT
 	{
 		result = false;
 	}
-	
+*/
+	switch (*CURRENT_Ci)
+	{
+		case c1:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c1;
+			result = true;
+			break;
+		case c2:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c2;
+			result = true;
+			break;
+		case c3:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c3;
+			result = true;
+			break;
+		case c4:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c4;
+			result = true;
+			break;
+		case c5:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c5;
+			result = true;
+			break;
+		case c6:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c6;
+			result = true;
+			break;
+		case c7:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c7;
+			result = true;
+			break;
+		case c8:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c8;
+			result = true;
+			break;
+		case c9:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c9;
+			result = true;
+			break;
+		case c10:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c10;
+			result = true;
+			break;
+		case c11:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c11;
+			result = true;
+			break;
+		case c12:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c12;
+			result = true;
+			break;
+		case c13:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c13;
+			result = true;
+			break;
+
+		default:
+			*CURRENT_Ci_IDENTITY = IS_TALKING;
+			result = false;
+			break;
+	}
+
+	Serial.print("I sent this ci identity to my master:"); Serial.println(*CURRENT_Ci_IDENTITY);
+
 	return result;
 } // END FUNCTION: readCurrentAnatomySlave
