@@ -795,12 +795,18 @@ bool PseudoSPIcommMetamorphicManipulator::saveCurrentStateSlave( volatile byte *
 bool PseudoSPIcommMetamorphicManipulator::lockPseudoMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  )
 {
 	/*
-	 *  Orders slave to lock only if is in position
+	 *  Orders slave to lock if is in position OR blocked
+	 *  If motor is blocked, will lock(out of pin) but will print message to ask for homing!
 	 *  Returns true only if locked achieved
 	 */	
 	bool result;
 
-	if (*CURRENT_STATE == IN_POSITION) 
+	if(*CURRENT_STATE == BLOCKED)
+	{
+        Serial.print("[   PSEUDO:"); Serial.print(pseudoID); Serial.println("   ] [	 BLOCKED  ] WILL LOCK BUT HOMING NEEDED");
+	}
+
+	if (	(*CURRENT_STATE == IN_POSITION) || (*CURRENT_STATE == BLOCKED)	)
 	{
 		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
 		unsigned long time_now_micros 			= micros();
@@ -830,6 +836,7 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoMaster(int pseudoID, int ssP
 	}
 	else
 	{
+
 		result =  false;
 	}
 	
@@ -847,7 +854,7 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoSlave(volatile byte *CURRENT
 	 *  2. Controls the relay of lock pin
 	 *  3. Returns the new state
 	 */
-	if((*CURRENT_STATE == IN_POSITION))		// check current state
+	if((*CURRENT_STATE == IN_POSITION) || (*CURRENT_STATE == BLOCKED) )		// check current state
 	{
 		digitalWrite(RELAY_lock_Pin, HIGH);        
 		digitalWrite(RELAY_lock_Pin2, HIGH);
@@ -1208,7 +1215,7 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoMaster(int pseudoID, int ssP
 			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_MOVE, slave_response);
 
 
-			if( (*CURRENT_STATE == IN_POSITION) )
+			if( (*CURRENT_STATE == IN_POSITION) || (*CURRENT_STATE == BLOCKED) )
 			{
 				slave_responded_correct_flag = true;
 				result = true;
@@ -1234,19 +1241,23 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoMaster(int pseudoID, int ssP
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE)
+bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE, volatile bool *limitHallActivated)
 {
 	/*
 	 *  Respond to movePseudoMaster, to execute pseudo must be unlocked
 	 *  1. executes stepper motion for RELATIVE_STEPS_TO_MOVE
-	 *  2. Returns true only if IN_POSITION state achieved
+	 *  2. Returns true only if STATE_UNLOCKED is first given
+	 *  3. Assigns IN_POSITION if successfully executes motion or BLOCKED if limit switch is pressed
 	 */	
+	int motor_step = 0;
+	bool KILL_MOTION = false;
 
 	if( (*CURRENT_STATE == STATE_UNLOCKED) )
 	{
 		// moves motor
-		for(int motor_step = 0; motor_step < abs( *RELATIVE_STEPS_TO_MOVE ); motor_step++){
-          
+		//for(int motor_step = 0; motor_step < abs( *RELATIVE_STEPS_TO_MOVE ); motor_step++){
+        while (	( motor_step < abs( *RELATIVE_STEPS_TO_MOVE ) ) && (!KILL_MOTION) )
+		{  
 		    time_now_micros = micros();
 
 			digitalWrite(stepPin_NANO, HIGH);
@@ -1256,11 +1267,39 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRE
 
           	Serial.println("Stepper moving");
           	Serial.print("current step = "); Serial.println(motor_step);
+
+			if( digitalRead(pseudoLimitSwitch_Pin) == HIGH )
+			{
+				*limitHallActivated = true;
+			}
+
+			if (*limitHallActivated)
+			{
+				Serial.println("[	INFO	] 	MIN/MAX LIMIT HALL SENSOR ACTIVATED! KILLS MOTION...");
+
+				// kill motion
+				// DRIVER->ENABLE PIN LOW?
+
+				// change flag value
+				*limitHallActivated = false;
+				KILL_MOTION = true;
+			}
+
+			// if emergency stop button pressed kill motion... not ready yet!
+			
+			motor_step++;
         }	
 
-		// motor finished - change state only. CP - CD have already changed in setGoalPositionSlave2
-		*CURRENT_STATE = IN_POSITION;
-
+		// after motion finished/stopped checks condition and assigns new state
+		if (KILL_MOTION)
+		{
+			*CURRENT_STATE = BLOCKED;
+		}
+		else
+		{
+			*CURRENT_STATE = IN_POSITION;
+		}
+		
 		result = true;
 	}
 	else
@@ -1526,7 +1565,7 @@ void PseudoSPIcommMetamorphicManipulator::setupEEPROMslave( int newID, float max
 	EEPROM.write(CS_EEPROM_ADDR, STATE_LOCKED);
 
 	// Set current position and direaction at setup
-	EEPROM.write(CP_EEPROM_ADDR, 7);
+	EEPROM.write(CP_EEPROM_ADDR, home_ci);
 	EEPROM.write(CD_EEPROM_ADDR, LOW);
 
 } // END FUNCTION: setupEEPROMslave
@@ -1655,7 +1694,7 @@ bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(volatile byte *CU
 		Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(STATE_IN_POSITION_STRING); Serial.println("   ]");          
 
 		*currentAbsPosPseudo 	= 0;
-		*currentAbsPosPseudo_ci = 7; 										// for 15deg angle step only
+		*currentAbsPosPseudo_ci = home_ci; 										
 		*CURRENT_STATE 			= IN_POSITION;
 		*currentDirStatusPseudo = MOTOR_DIRECTION;
 
@@ -1748,7 +1787,14 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomyMaster(int pseudoID,
 			*CURRENT_Ci = c13;
 			slave_responded_correct_flag = true;
 			break;
-
+		case slave_is_at_c14:
+			*CURRENT_Ci = c14;
+			slave_responded_correct_flag = true;
+			break;
+		case slave_is_at_c15:
+			*CURRENT_Ci = c15;
+			slave_responded_correct_flag = true;
+			break;			
 		default:
 			*CURRENT_Ci = wrong_ci;
 			//Serial.println("WRONG Ci inside readCurrentAnatomyMaster!");
@@ -1760,7 +1806,7 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomyMaster(int pseudoID,
 
 	digitalWrite(ssPins[pseudoID-1], HIGH);				// disable Pseudo Slave Select pin
 
-	if( (*CURRENT_Ci >= c1)  && (*CURRENT_Ci  <= c13))
+	if( (*CURRENT_Ci >= c1)  && (*CURRENT_Ci  <= c15 ) )
 	{
 		//Serial.print("ci given by slave inside readCurrentAnatomyMaster:"); Serial.println(*CURRENT_Ci);
 		result = true;
@@ -1853,7 +1899,14 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentAnatomySlave(volatile byte 
 			*CURRENT_Ci_IDENTITY = slave_is_at_c13;
 			result = true;
 			break;
-
+		case c14:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c14;
+			result = true;
+			break;
+		case c15:
+			*CURRENT_Ci_IDENTITY = slave_is_at_c15;
+			result = true;
+			break;
 		default:
 			*CURRENT_Ci_IDENTITY = IS_TALKING;
 			result = false;

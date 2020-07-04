@@ -217,6 +217,7 @@ class PseudoSPIcommMetamorphicManipulator{
 	bool setHomePositionMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
 	
 	bool saveEEPROMsettingsMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
+	
 	/*  *Slave*  */
 
 	void setupEEPROMslave(int newID, float max_angle_limit, float min_angle_limit, float pseudoStepAngle);
@@ -245,7 +246,7 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	void txrxLEDSblink( int number_of_blinks, unsigned long blink_for_ms);
 	
-	bool movePseudoSlave(volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE);
+	bool movePseudoSlave(volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE, volatile bool *limitHallActivated);
 
 	bool setHomePositionSlave(volatile byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated_local, volatile bool *limitHallActivated_local);
 
