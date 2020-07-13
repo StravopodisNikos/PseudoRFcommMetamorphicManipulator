@@ -213,8 +213,10 @@ class PseudoSPIcommMetamorphicManipulator{
 	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, volatile byte *CURRENT_STATE );
 
 	bool readCurrentAnatomyMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY);
+
+	bool setPreHomePositionStateMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
 	
-	bool setHomePositionMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
+	bool go2HomePositionMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
 	
 	bool saveEEPROMsettingsMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
 	
@@ -248,7 +250,9 @@ class PseudoSPIcommMetamorphicManipulator{
 	
 	bool movePseudoSlave(volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE, volatile bool *limitHallActivated);
 
-	bool setHomePositionSlave(volatile byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated_local, volatile bool *limitHallActivated_local);
+	bool setPreHomePositionStateSlave(volatile byte *CURRENT_STATE);
+
+	bool go2HomePositionSlave(volatile byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated_local, volatile bool *limitHallActivated_local);
 
 	bool readCurrentAnatomySlave( volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY );
 	

@@ -718,7 +718,8 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentStateMaster(int pseudoID, i
 
 		*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_GIVE_CS, slave_response);
 		
-		if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == IN_POSITION) )
+		//if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == IN_POSITION) )
+		if( (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == HOME_FINISHED) )
 		{
 			slave_responded_correct_flag = true;
 			result = true;
@@ -750,7 +751,8 @@ bool PseudoSPIcommMetamorphicManipulator::readCurrentStateSlave(volatile byte *C
 
 	*CURRENT_STATE = EEPROM.read(CS_EEPROM_ADDR);
 
-	if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == IN_POSITION) )
+	//if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == IN_POSITION) )
+	if( (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == HOME_FINISHED) )
 	{
 		result = true;
 	}
@@ -930,7 +932,8 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(volatile byte *CURRE
 	bool result;
 	Serial.println(*CURRENT_STATE);
 
-	if((*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == STATE_READY) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED) )				// check current state
+	//if((*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == STATE_READY) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED) )				// check current state
+	if( (*CURRENT_STATE == STATE_READY) )
 	{
 		digitalWrite(RELAY_lock_Pin, LOW);      	
 		digitalWrite(RELAY_lock_Pin2, LOW);
@@ -960,7 +963,8 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionMaster(int pseudoID, in
 	
 	//Serial.println("setGoalPositionMaster!!!!!!!!!!!!"); // OKOK
 
-	if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT)  ) 	
+	//if ( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT)  ) 
+	if( (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == HOME_FINISHED) )	
 	{		
 		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  		// how much waits inside transfer function
 		unsigned long time_now_micros 			= micros();
@@ -1011,7 +1015,8 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave( byte *PSEUDO_GOA
 	 */	
 	bool result;
 
-	if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) )
+	//if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) )
+	if( (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == HOME_FINISHED) )
 	{
 		
 		float step_angle = 0.00f;
@@ -1572,7 +1577,79 @@ void PseudoSPIcommMetamorphicManipulator::setupEEPROMslave( int newID, float max
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::setHomePositionMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE )
+bool PseudoSPIcommMetamorphicManipulator::setPreHomePositionStateMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  )
+{
+	/*
+	 *  Since homing is executed using limit/homing sensors no target ci is given
+	 *  To match the architecture of setGoalPosition function the state must be set to STATE_READY
+	 *  This is the only job executed by this function!!!
+	 */	
+	bool result;
+
+	if((*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == HOME_FINISHED))										// check current state
+	{
+		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
+		unsigned long time_now_micros 			= micros();
+		bool slave_responded_correct_flag		= false;
+
+		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
+
+		do{
+
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte ) CMD_PREPARE_HOME_STATE, slave_response);
+		
+			if( (*CURRENT_STATE == STATE_READY) )
+			{
+				slave_responded_correct_flag = true;
+				result = true;
+			}
+			else
+			{
+				result = false;
+			}
+
+		}while( (!slave_responded_correct_flag) );
+
+		digitalWrite(ssPins[pseudoID-1], HIGH);								// disable Pseudo Slave Select pin
+
+	}
+	else
+	{
+		result = false;
+	}
+	
+	return result;
+} // END FUNCTION: lockPseudoMaster
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::setPreHomePositionStateSlave(volatile byte *CURRENT_STATE)
+{
+	/*
+	 *  This is the response from setPreHomePositionStateMaster.
+	 *  Only changes slave state and sends it to Master
+	 */
+
+	bool result;
+
+	if((*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == HOME_FINISHED))	
+	{
+
+		*CURRENT_STATE = STATE_READY;			// Change state
+
+		result = true;
+	}
+	else
+	{
+		result = false;
+	}
+
+	return result;	
+} // END FUNCTION: setPreHomePositionStateSlave
+
+// =========================================================================================================== //
+
+bool PseudoSPIcommMetamorphicManipulator::go2HomePositionMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE )
 {
 	/*
 	 *  Orders slave to go to Home position
@@ -1619,7 +1696,7 @@ bool PseudoSPIcommMetamorphicManipulator::setHomePositionMaster(int pseudoID, in
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::setHomePositionSlave(volatile byte *CURRENT_STATE ,int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated, volatile bool *limitHallActivated){
+bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CURRENT_STATE ,int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated, volatile bool *limitHallActivated){
 
 	bool result;
 
