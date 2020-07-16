@@ -238,7 +238,7 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte * currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte * currentDirStatusPseudo, volatile byte *CURRENT_STATE );
 
-	bool saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo);
+	bool saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo, byte *operation_executed));
 
 	bool repeatMetaSlave(volatile byte *CURRENT_STATE);
 
@@ -248,11 +248,11 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	void txrxLEDSblink( int number_of_blinks, unsigned long blink_for_ms);
 	
-	bool movePseudoSlave(volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE, volatile bool *limitHallActivated);
+	bool movePseudoSlave(volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE, volatile bool *limitHallActivated, byte *operation_executed);
 
 	bool setPreHomePositionStateSlave(volatile byte *CURRENT_STATE);
 
-	bool go2HomePositionSlave(volatile byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated_local, volatile bool *limitHallActivated_local);
+	bool go2HomePositionSlave(volatile byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated_local, volatile bool *limitHallActivated_local, byte *operation_executed);
 
 	bool readCurrentAnatomySlave( volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY );
 	

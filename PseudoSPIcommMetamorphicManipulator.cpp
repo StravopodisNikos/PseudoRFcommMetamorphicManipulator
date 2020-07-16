@@ -883,7 +883,8 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoMaster(int pseudoID, int s
 	 */	
 	bool result;
 
-	if((*CURRENT_STATE == STATE_READY) || (*CURRENT_STATE == META_FINISHED))										// check current state
+	//if((*CURRENT_STATE == STATE_READY) || (*CURRENT_STATE == META_FINISHED))										
+	if( (*CURRENT_STATE == STATE_READY) )
 	{
 		unsigned long slave_response 			= SLAVE_RESPONSE_TIME;  	// how much waits inside transfer function
 		unsigned long time_now_micros 			= micros();
@@ -1062,10 +1063,12 @@ bool PseudoSPIcommMetamorphicManipulator::setGoalPositionSlave2( byte *PSEUDO_GO
 	 *  4. Calculates Delta theta_p (float) and (int) using METAMORPHOSIS_Ci_STEPS
 	 *  5. Calculates direction
 	 */	
+
 	bool result;
 	//Serial.print("state in setGoalPositionSlave2 = "); Serial.println(*CURRENT_STATE);
 
-	if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) )
+	//if( (*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == META_REPEAT) )
+	if( (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == HOME_FINISHED) )
 	{
 		//Serial.println("PSEUDO_GOAL_POSITION = "); Serial.println(*PSEUDO_GOAL_POSITION);
 		//delay(1000);
@@ -1246,7 +1249,7 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoMaster(int pseudoID, int ssP
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE, volatile bool *limitHallActivated)
+bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE, volatile bool *limitHallActivated, byte *operation_executed)
 {
 	/*
 	 *  Respond to movePseudoMaster, to execute pseudo must be unlocked
@@ -1305,6 +1308,8 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRE
 			*CURRENT_STATE = IN_POSITION;
 		}
 		
+		*operation_executed = OPERATION_META;		// this value will be given to saveEEPROMsettingsSlave to accordingly save CS to EEPROM
+
 		result = true;
 	}
 	else
@@ -1380,9 +1385,9 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  )
 {
 	/*
-	 *  Orders slave to lock only if is in position
-	 *  Returns true only if locked achieved
-	 */	
+	 *  After successfull locking operation terminates by saving values to eeprom!
+	 */
+
 	bool result;
 
 	if (*CURRENT_STATE == STATE_LOCKED) 
@@ -1398,7 +1403,7 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsMaster(int pseudoID,
 			Serial.print("Mphka saveEEPROMsettingsMaster(MUST BE 100)"); Serial.println(*CURRENT_STATE);
 			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_SAVE_EEPROM, slave_response);
 
-			if( (*CURRENT_STATE == META_FINISHED) )
+			if( (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == HOME_FINISHED) )	// this can be expanded when more operations are added
 			{
 				slave_responded_correct_flag = true;
 				result = true;
@@ -1424,34 +1429,57 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsMaster(int pseudoID,
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo)
+bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo, byte *operation_executed)
 {
 	/*
-	 *	Responds to continueMetaExecutionMaster
+	 *	Responds to saveEEPROMsettingsMaster
 	 */
+
 	bool result;
 	Serial.print("State in saveEEPROMsettingsSlave"); Serial.println(*CURRENT_STATE);
 
-	//if( (*CURRENT_STATE == STATE_LOCKED) )
-	for (size_t one_time_counter = 0; one_time_counter < 1; one_time_counter++)
+	if( (*CURRENT_STATE == STATE_LOCKED) )
 	{
-		// 1. Save the dirPin status
-		EEPROM.update(CD_EEPROM_ADDR, *currentDirStatusPseudo);
-		Serial.println("[INFO]  SAVED	[	CD	] 	TO 	EEPROM");
+		for (size_t one_time_counter = 0; one_time_counter < 1; one_time_counter++)
+		{
+			// 1. Save the dirPin status
+			EEPROM.update(CD_EEPROM_ADDR, *currentDirStatusPseudo);
+			Serial.println("[INFO]  SAVED	[	CD	] 	TO 	EEPROM");
 
-		// 2. Save current absolute position in which pseudo is locked after metamorphosis
-		EEPROM.update(CP_EEPROM_ADDR, *currentAbsPosPseudo_ci);
-		Serial.println("[INFO]  SAVED	[	CP	] 	TO 	EEPROM");
+			// 2. Save current absolute position in which pseudo is locked after metamorphosis
+			EEPROM.update(CP_EEPROM_ADDR, *currentAbsPosPseudo_ci);
+			Serial.println("[INFO]  SAVED	[	CP	] 	TO 	EEPROM");
 
-		// 3. Save the last state of pseudo(always meta finished in order to save)
-		EEPROM.update(CS_EEPROM_ADDR, META_FINISHED);
-		Serial.println("[INFO]  SAVED	[	CS	] 	TO 	EEPROM");
+			// switch to check operation executed
+			switch (*operation_executed)
+			{
+			case OPERATION_HOME:
+				*CURRENT_STATE = HOME_FINISHED;
+				result = true;
+				break;
 
-		*CURRENT_STATE = META_FINISHED;
+			case OPERATION_META:
+				*CURRENT_STATE = META_FINISHED;
+				result = true;
+				break;
 
-		result = true;
+			default:
+				*CURRENT_STATE = ERROR_STATE;
+				result = false;
+				break;
+			}
+
+			// 3. Save the last state of pseudo(always meta finished in order to save)
+			EEPROM.update(CS_EEPROM_ADDR, *CURRENT_STATE);
+			Serial.print("[INFO]  SAVED	[	CS	]:	"); Serial.print(*CURRENT_STATE); Serial.println(" TO	EEPROM");
+	
+		}
 	}
-
+	else
+	{
+		result = false;
+	}
+	
 	return result;
 
 } // END FUNCTION: saveEEPROMsettingsSlave
@@ -1696,7 +1724,7 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionMaster(int pseudoID, in
 
 // =========================================================================================================== //
 
-bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CURRENT_STATE ,int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated, volatile bool *limitHallActivated){
+bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CURRENT_STATE ,int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated, volatile bool *limitHallActivated, byte *operation_executed){
 
 	bool result;
 
@@ -1777,6 +1805,8 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 
 		EEPROM.update(CP_EEPROM_ADDR, *currentAbsPosPseudo_ci);
 		Serial.println("[INFO]  SAVED	[	CP	] 	TO 	EEPROM");
+
+		*operation_executed = OPERATION_HOME;		// this value will be given to saveEEPROMsettingsSlave to accordingly save CS to EEPROM
 
 		result = true;
 	}
