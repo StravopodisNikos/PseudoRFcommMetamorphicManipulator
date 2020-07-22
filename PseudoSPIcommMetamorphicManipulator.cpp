@@ -815,6 +815,7 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoMaster(int pseudoID, int ssP
 		bool slave_responded_correct_flag		= false;
 
 		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
+			Serial.print("Mphka lockPseudoMaster(MUST BE 111)"); Serial.println(*CURRENT_STATE);
 
 		do{
 
@@ -856,7 +857,7 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoSlave(volatile byte *CURRENT
 	 *  2. Controls the relay of lock pin
 	 *  3. Returns the new state
 	 */
-	if((*CURRENT_STATE == IN_POSITION) || (*CURRENT_STATE == BLOCKED) )		// check current state
+	if( (*CURRENT_STATE == IN_POSITION) || (*CURRENT_STATE == BLOCKED) )		// check current state
 	{
 		digitalWrite(RELAY_lock_Pin, HIGH);        
 		digitalWrite(RELAY_lock_Pin2, HIGH);
@@ -1399,10 +1400,11 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsMaster(int pseudoID,
 
 		digitalWrite(ssPins[pseudoID-1], LOW);								// enable Pseudo Slave Select pin
 
-		do{
-			Serial.print("Mphka saveEEPROMsettingsMaster(MUST BE 100)"); Serial.println(*CURRENT_STATE);
-			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_SAVE_EEPROM, slave_response);
+		Serial.print("Mphka saveEEPROMsettingsMaster(MUST BE 100)"); Serial.println(*CURRENT_STATE);
 
+		do{
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte) CMD_SAVE_EEPROM, slave_response);
+			Serial.println(*CURRENT_STATE);
 			if( (*CURRENT_STATE == META_FINISHED) || (*CURRENT_STATE == HOME_FINISHED) )	// this can be expanded when more operations are added
 			{
 				slave_responded_correct_flag = true;
@@ -1440,6 +1442,8 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(volatile byte 
 
 	if( (*CURRENT_STATE == STATE_LOCKED) )
 	{
+		Serial.println("Mphka saveEEPROMsettingsSlave");
+
 		for (size_t one_time_counter = 0; one_time_counter < 1; one_time_counter++)
 		{
 			// 1. Save the dirPin status
@@ -1453,20 +1457,22 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(volatile byte 
 			// switch to check operation executed
 			switch (*operation_executed)
 			{
-			case OPERATION_HOME:
-				*CURRENT_STATE = HOME_FINISHED;
-				result = true;
-				break;
+				case OPERATION_HOME:
+					*CURRENT_STATE = HOME_FINISHED;
+					Serial.println("GAMIETAI TO OPERATION_HOME");
+					result = true;
+					break;
 
-			case OPERATION_META:
-				*CURRENT_STATE = META_FINISHED;
-				result = true;
-				break;
+				case OPERATION_META:
+					Serial.println("GAMIETAI TO OPERATION_META");
+					*CURRENT_STATE = META_FINISHED;
+					result = true;
+					break;
 
-			default:
-				*CURRENT_STATE = ERROR_STATE;
-				result = false;
-				break;
+				default:
+					*CURRENT_STATE = STATE_ERROR;
+					result = true;
+					break;
 			}
 
 			// 3. Save the last state of pseudo(always meta finished in order to save)
@@ -1595,7 +1601,7 @@ void PseudoSPIcommMetamorphicManipulator::setupEEPROMslave( int newID, float max
 	EEPROM.put(STEP_ANGLE_ADDR, pseudoStepAngle);
 
 	// Set current state of pseudos
-	EEPROM.write(CS_EEPROM_ADDR, STATE_LOCKED);
+	EEPROM.write(CS_EEPROM_ADDR, META_FINISHED);
 
 	// Set current position and direaction at setup
 	EEPROM.write(CP_EEPROM_ADDR, home_ci);
@@ -1624,7 +1630,7 @@ bool PseudoSPIcommMetamorphicManipulator::setPreHomePositionStateMaster(int pseu
 
 		do{
 
-			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte ) CMD_PREPARE_HOME_STATE, slave_response);
+			*CURRENT_STATE = PseudoSPIcommMetamorphicManipulator::singleByteTransfer((byte ) CMD_PRE_HOME, slave_response);
 		
 			if( (*CURRENT_STATE == STATE_READY) )
 			{
@@ -1736,10 +1742,6 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 
 	Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(HOMING); Serial.println("   ]");          
 
-// commented since function is used only on demand 
-	//digitalWrite(RELAY_lock_Pin, LOW);      							
-	//digitalWrite(RELAY_lock_Pin2, LOW);
-
 	if( (*CURRENT_STATE == STATE_UNLOCKED)  )
 	{
 
@@ -1792,9 +1794,6 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 			}
 
 		}
-
-		//digitalWrite(RELAY_lock_Pin, HIGH);
-		//digitalWrite(RELAY_lock_Pin2, HIGH);
 
 		Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(STATE_IN_POSITION_STRING); Serial.println("   ]");          
 

@@ -55,7 +55,9 @@ extern float step_angle;
 
 // Constants
 const char STATE_LOCKED_STRING[] 	= "LOCKED";
+const char STATE_PRE_HOMED_STRING[] = "PRE_HOMED";
 const char STATE_HOMED_STRING[] 	= "HOMED";
+const char STATE_SAVED_EEPROM_STRING[] 	= "SAVED_EEPROM";
 const char STATE_UNLOCKED_STRING[] 	= "UNLOCKED";
 const char STATE_IN_POSITION_STRING[] = "IN_POSITION"; 
 const char COMMAND_LOCK_STRING[] 	= "LOCK";
@@ -238,7 +240,7 @@ class PseudoSPIcommMetamorphicManipulator{
 
 	bool setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte * currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte * currentDirStatusPseudo, volatile byte *CURRENT_STATE );
 
-	bool saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo, byte *operation_executed));
+	bool saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo, byte *operation_executed);
 
 	bool repeatMetaSlave(volatile byte *CURRENT_STATE);
 
