@@ -859,8 +859,8 @@ bool PseudoSPIcommMetamorphicManipulator::lockPseudoSlave(volatile byte *CURRENT
 	 */
 	if( (*CURRENT_STATE == IN_POSITION) || (*CURRENT_STATE == BLOCKED) )		// check current state
 	{
-		digitalWrite(RELAY_lock_Pin, HIGH);        
-		digitalWrite(RELAY_lock_Pin2, HIGH);
+		digitalWrite(RELAY_lock_Pin, LOW);        
+		digitalWrite(RELAY_lock_Pin2, LOW); //THIS
 
 		*CURRENT_STATE = STATE_LOCKED;		// Change state
 
@@ -937,8 +937,8 @@ bool PseudoSPIcommMetamorphicManipulator::unlockPseudoSlave(volatile byte *CURRE
 	//if((*CURRENT_STATE == STATE_LOCKED) || (*CURRENT_STATE == STATE_READY) || (*CURRENT_STATE == META_REPEAT) || (*CURRENT_STATE == META_FINISHED) )				// check current state
 	if( (*CURRENT_STATE == STATE_READY) )
 	{
-		digitalWrite(RELAY_lock_Pin, LOW);      	
-		digitalWrite(RELAY_lock_Pin2, LOW);
+		digitalWrite(RELAY_lock_Pin, HIGH);      	
+		digitalWrite(RELAY_lock_Pin2, HIGH);		//THIS
 
 		*CURRENT_STATE = STATE_UNLOCKED;			// Change state
 
@@ -1274,8 +1274,7 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRE
 			//delayMicroseconds(250);
     		digitalWrite(stepPin_NANO, LOW);
 
-          	Serial.println("Stepper moving");
-          	Serial.print("current step = "); Serial.println(motor_step);
+          	Serial.print("[	  INFO	]	PSEUDO MOVING	"); Serial.print("CURRENT STEP = "); Serial.println(motor_step);
 
 			if( digitalRead(pseudoLimitSwitch_Pin) == HIGH )
 			{
@@ -1459,12 +1458,12 @@ bool PseudoSPIcommMetamorphicManipulator::saveEEPROMsettingsSlave(volatile byte 
 			{
 				case OPERATION_HOME:
 					*CURRENT_STATE = HOME_FINISHED;
-					Serial.println("GAMIETAI TO OPERATION_HOME");
+					//Serial.println("GAMIETAI TO OPERATION_HOME");
 					result = true;
 					break;
 
 				case OPERATION_META:
-					Serial.println("GAMIETAI TO OPERATION_META");
+					//Serial.println("GAMIETAI TO OPERATION_META");
 					*CURRENT_STATE = META_FINISHED;
 					result = true;
 					break;
@@ -1737,8 +1736,7 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 	byte MOTOR_DIRECTION = *currentDirStatusPseudo;
 	int homing_calibration_steps;
 	bool HOMING_PSEUDO = true;
-
-	unsigned long homing_stepping_delay = 500;
+	unsigned long homing_stepping_delay = 1000;
 
 	Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(HOMING); Serial.println("   ]");          
 
@@ -1746,7 +1744,8 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 	{
 
 		while (HOMING_PSEUDO)
-		{                                                                        
+		{    
+			//Serial.print("activation_cnt="); Serial.println(activation_cnt);                                                                   
 			time_now_micros = micros();
 
 			// Step motor
@@ -1755,7 +1754,7 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 			digitalWrite(stepPin_NANO, LOW);
 
 	// next if's are commented since ISR is used
-	///*
+	/*
 			if( digitalRead(pseudoLimitSwitch_Pin) == HIGH )
 			{
 				*limitHallActivated = true;
@@ -1765,10 +1764,10 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 			{
 				*homingHallActivated = true;
 			}
-	//*/
-			if (*limitHallActivated)
+	*/
+			if ( (*limitHallActivated) && (activation_cnt == 1) )
 			{
-				Serial.println("MIN/MAX LIMIT HALL SENSOR ACTIVATED");
+				Serial.println("[	 INFO 	 ] 	MIN/MAX LIMIT HALL SENSOR ACTIVATED");
 
 				// Change DIR Pin status
 				digitalWrite(dirPin_NANO, !MOTOR_DIRECTION);
@@ -1778,7 +1777,7 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 
 			if (*homingHallActivated)
 			{
-				Serial.println("HOME HALL SENSOR ACTIVATED");
+				Serial.println("[	 INFO	] 	HOME HALL SENSOR ACTIVATED");
 
 				for (size_t homing_calibration_steps = 0; homing_calibration_steps < HOMING_CALIBRATION_LIMIT; homing_calibration_steps++)
 				{
@@ -1786,7 +1785,7 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 					digitalWrite(stepPin_NANO, HIGH);
 					while(micros() < time_now_micros + homing_stepping_delay){}   	// wait approx. [μs]
 					digitalWrite(stepPin_NANO, LOW);
-					Serial.println(homing_calibration_steps);
+					//Serial.println(homing_calibration_steps);
 				}
 				
 				HOMING_PSEUDO = false;

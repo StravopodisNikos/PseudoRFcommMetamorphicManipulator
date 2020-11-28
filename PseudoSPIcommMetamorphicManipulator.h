@@ -36,6 +36,7 @@ extern volatile byte CURRENT_Ci_IDENTITY;
 extern volatile byte PSEUDO_CURRENT_POSITION;
 extern volatile bool homingHallActivated;
 extern volatile bool limitHallActivated;
+extern volatile int activation_cnt;
 
 extern float theta_p_current;
 extern float theta_p_goal;
