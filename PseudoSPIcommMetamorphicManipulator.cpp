@@ -21,7 +21,9 @@
 #include <definitions.h>                            
 #include <motorIDs.h>                               
 #include <contolTableItems_LimitValues.h>
-#include <StepperMotorSettings.h>
+#include <ovidius_robot_controller_eeprom_addresses.h>
+#include <utility/pseudo_led_indicators.h>
+//#include <StepperMotorSettings.h>
 
 // Addresses
 typedef const byte typeAddresses[ADDRESS_WIDTH]; 
@@ -31,21 +33,21 @@ typedef const byte typeAddresses[ADDRESS_WIDTH];
  */
 /*
 // Constructor
-PseudoRFcommMetamorphicManipulator::PseudoRFcommMetamorphicManipulator(RF24 RADIO, int pseudoID, int csnPin, int cePin, int misoPin, int mosiPin, int txLedPin, int rxLedPin)
+PseudoRFcommMetamorphicManipulator::PseudoRFcommMetamorphicManipulator(RF24 RADIO, int pseudoID, int csnPin, int cePin, int misoPin, int mosiPin, int greenLedPin, int blueLedPin)
 {
-	pinMode(txLedPin,OUTPUT);
-	pinMode(rxLedPin,OUTPUT);
+	pinMode(greenLedPin,OUTPUT);
+	pinMode(blueLedPin,OUTPUT);
 
-	digitalWrite(txLedPin,LOW);
-	digitalWrite(rxLedPin,LOW);
+	digitalWrite(greenLedPin,LOW);
+	digitalWrite(blueLedPin,LOW);
 
 	_pseudoID = pseudoID;
 	_csnPin   = csnPin;
 	_cePin    = cePin;
 	_misoPin  = misoPin;
 	_mosiPin  = mosiPin;
-	_txLedPin = txLedPin;
-	_rxLedPin = rxLedPin;	
+	_greenLedPin = greenLedPin;
+	_blueLedPin = blueLedPin;	
 }
 
 bool PseudoRFcommMetamorphicManipulator::setTxMaster(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] )
@@ -72,8 +74,8 @@ bool PseudoRFcommMetamorphicManipulator::setTxMaster(RF24 OBJECT, uint8_t radioP
 		else{
 			Serial.print("[   MASTER  ]  "); Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Rx Mode to SLAVE: SUCCESS");
 			result = true;
-			digitalWrite(_txLedPin,HIGH);
-			digitalWrite(_rxLedPin,LOW);
+			digitalWrite(_greenLedPin,HIGH);
+			digitalWrite(_blueLedPin,LOW);
 		}
 	}while(!result);
 
@@ -131,8 +133,8 @@ bool PseudoRFcommMetamorphicManipulator::setRxMaster(RF24 OBJECT, uint8_t radioP
 				{
 					//Serial.println("[ MASTER ] WRITE Rx Mode to MASTER: SUCCESS");
 					result = true;
-						digitalWrite(_txLedPin,LOW);
-						digitalWrite(_rxLedPin,HIGH);
+						digitalWrite(_greenLedPin,LOW);
+						digitalWrite(_blueLedPin,HIGH);
 				}
 				else
 				{
@@ -212,8 +214,8 @@ bool PseudoRFcommMetamorphicManipulator::setTxSlave(RF24 OBJECT, uint8_t radioPs
 			else{
 				Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Rx Mode to MASTER SUCCESS");
 				result = true;
-				digitalWrite(_txLedPin,HIGH);
-				digitalWrite(_rxLedPin,LOW);
+				digitalWrite(_greenLedPin,HIGH);
+				digitalWrite(_blueLedPin,LOW);
 			}
 		}while(!result);
 	}
@@ -252,15 +254,15 @@ bool PseudoRFcommMetamorphicManipulator::setRxSlave(RF24 OBJECT, uint8_t radioPs
 				{
 					Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Rx MODE from MASTER: SUCCESS");
 					continue_exec = true;
-					digitalWrite(_txLedPin,LOW);
-					digitalWrite(_rxLedPin,HIGH);
+					digitalWrite(_greenLedPin,LOW);
+					digitalWrite(_blueLedPin,HIGH);
 				}
 				else
 				{
 					Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] READ Rx MODE from MASTER: FAILED"); 
 					continue_exec = false;
-					digitalWrite(_txLedPin,HIGH);
-					digitalWrite(_rxLedPin,HIGH);
+					digitalWrite(_greenLedPin,HIGH);
+					digitalWrite(_blueLedPin,HIGH);
 				}
 		}
 	} while (!continue_exec);
@@ -524,8 +526,8 @@ bool PseudoRFcommMetamorphicManipulator::execTxRxBlockMaster(RF24 OBJECT, uint8_
 	else{
 		Serial.print("[   MASTER  ]  "); Serial.print("[ PSEUDO: "); Serial.print(radioPseudoNumber); Serial.println(" ] WRITE Rx Mode to SLAVE: SUCCESS");
 		result = true;
-		digitalWrite(_txLedPin,HIGH);
-		digitalWrite(_rxLedPin,LOW);
+		digitalWrite(_greenLedPin,HIGH);
+		digitalWrite(_blueLedPin,LOW);
 	}
 
 	// II. Write command to Slave
@@ -539,9 +541,10 @@ bool PseudoRFcommMetamorphicManipulator::execTxRxBlockMaster(RF24 OBJECT, uint8_
  *  FUNCTIONS FOR PseudoSPIcommMetamorphicManipulator CLASS
  */
 
-PseudoSPIcommMetamorphicManipulator::PseudoSPIcommMetamorphicManipulator(enum Mode mode, int pseudoID, int statusLedPin, int mosiPin, int misoPin, int sckPin, int txLedPin, int rxLedPin, int ssPins[]){
+PseudoSPIcommMetamorphicManipulator::PseudoSPIcommMetamorphicManipulator(Mode mode, int pseudoID, int mosiPin, int misoPin, int sckPin, int redLedPin, int greenLedPin, int blueLedPin, int ssPins[]){
 
 // Construct MASTER/SLAVE object => sets the corresponding pin modes
+/*
 if (mode == Tx)
 {
 	pinMode(sckPin, OUTPUT);
@@ -568,26 +571,86 @@ if (mode == Rx)
 		pinMode(ssPins[i], !OUTPUT);
 	}
 }
-
+*/
 	// LEDS ARE OFF @ construction
-	pinMode(txLedPin,OUTPUT);
-	pinMode(rxLedPin,OUTPUT);
-	pinMode(statusLedPin,OUTPUT);
-
-	digitalWrite(txLedPin,LOW);
-	digitalWrite(rxLedPin,LOW);
-	digitalWrite(statusLedPin,LOW);
-	
+/*
+	pinMode(greenLedPin,OUTPUT);
+	pinMode(blueLedPin,OUTPUT);
+	pinMode(redLedPin,OUTPUT);
+*/
 	_pseudoID = pseudoID;
 	_mosiPin  = mosiPin;
 	_misoPin  = misoPin;
 	_sckPin   = sckPin;
+    _stepPin  = stepPin_NANO;
+	_greenLedPin = greenLedPin;
+	_blueLedPin = blueLedPin;
+	_redLedPin = redLedPin;
 
-	_txLedPin = txLedPin;
-	_rxLedPin = rxLedPin;
-	_statusLedPin = statusLedPin;
-
+	// STATE UPDATES INITIALIZATON
+	_update_STEP_STATE_interval = FIXED_PSEUDO_STEP_DELAY;  // [micros]
+	_last_STEP_STATE_update = 0;
+	_STEP_PIN_STATE         = HIGH;
+	_LED_PIN_STATE          = HIGH;
 }
+
+// =========================================================================================================== //
+
+void PseudoSPIcommMetamorphicManipulator::setPseudoLed(const unsigned char *led_indicator)
+{
+    // FIRST TURN OFF PREVIOUS VAL
+    analogWrite(_redLedPin   , 0);  // write RED VALUE
+    analogWrite(_greenLedPin , 0);  // write GREEN VALUE 
+    analogWrite(_blueLedPin  , 0); // write BLUE VALUE 
+
+    analogWrite(_redLedPin   , led_indicator[0]);  // write RED VALUE
+    analogWrite(_greenLedPin , led_indicator[1]);  // write GREEN VALUE 
+    analogWrite(_blueLedPin  , led_indicator[2]); // write BLUE VALUE 
+ 
+    return;        
+}
+// =========================================================================================================== //
+
+void PseudoSPIcommMetamorphicManipulator::updateSingleStepFixedDelay(int &StpPresentPosition)
+{
+  // Only half step pulse is generated! Total+steps/phase must be multiplied x 2! 
+    
+    if (micros() - _last_STEP_STATE_update > _update_STEP_STATE_interval)
+    {
+      digitalWrite(_stepPin, !_STEP_PIN_STATE);
+
+      _last_STEP_STATE_update = micros();
+
+      _STEP_PIN_STATE = !_STEP_PIN_STATE;
+
+      StpPresentPosition++;  
+	}
+    
+} 
+
+// =========================================================================================================== //
+
+void PseudoSPIcommMetamorphicManipulator::updateLedState(const unsigned char *led_indicator, unsigned long led_state_interval)
+{
+  // Blinks the led for the  led_state_interval[millis] for the colour given by led_indicator
+
+    if (millis() - _last_LED_STATE_update > led_state_interval)
+    {
+	  // check current state
+	  if (_LED_PIN_STATE == HIGH)
+	  {
+		  setPseudoLed(led_indicator);
+	  }
+	  else
+	  {
+		  setPseudoLed(turn_off_led);
+	  }
+      _last_LED_STATE_update = millis();
+
+      _LED_PIN_STATE = !_LED_PIN_STATE;
+	}
+    
+} 
 
 // =========================================================================================================== //
 
@@ -1261,20 +1324,27 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRE
 	int motor_step = 0;
 	bool KILL_MOTION = false;
 
+	int TOTAL_STEPS2MOVE = (int) 2 * (*RELATIVE_STEPS_TO_MOVE); // [5-4-21 ]because state machine is implemented now
+
+	unsigned long pseudo_move_led_interval = PSEUDO_MOVE_LED_BLINK_INTERVAL;
+
 	if( (*CURRENT_STATE == STATE_UNLOCKED) )
 	{
 		// moves motor
-		//for(int motor_step = 0; motor_step < abs( *RELATIVE_STEPS_TO_MOVE ); motor_step++){
-        while (	( motor_step < abs( *RELATIVE_STEPS_TO_MOVE ) ) && (!KILL_MOTION) )
+        while (	( motor_step < abs( TOTAL_STEPS2MOVE ) ) && (!KILL_MOTION) )
 		{  
+			/*
 		    time_now_micros = micros();
-
 			digitalWrite(stepPin_NANO, HIGH);
     		while(micros() < time_now_micros + 250){}                   //wait approx. [μs]
 			//delayMicroseconds(250);
     		digitalWrite(stepPin_NANO, LOW);
+			*/
+		    updateSingleStepFixedDelay(motor_step);		// -> executes half step if time has come!
 
-          	Serial.print("[	  INFO	]	PSEUDO MOVING	"); Serial.print("CURRENT STEP = "); Serial.println(motor_step);
+			updateLedState(pseudo_motors_moving_indicator, pseudo_move_led_interval); // [skyblue color]
+
+          	//Serial.print("[	  INFO	]	PSEUDO MOVING	"); Serial.print("CURRENT STEP = "); Serial.println(motor_step);
 
 			if( digitalRead(pseudoLimitSwitch_Pin) == HIGH )
 			{
@@ -1283,7 +1353,7 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRE
 
 			if (*limitHallActivated)
 			{
-				Serial.println("[	INFO	] 	MIN/MAX LIMIT HALL SENSOR ACTIVATED! KILLS MOTION...");
+				//Serial.println("[	INFO	] 	MIN/MAX LIMIT HALL SENSOR ACTIVATED! KILLS MOTION...");
 
 				// kill motion
 				// DRIVER->ENABLE PIN LOW?
@@ -1295,7 +1365,7 @@ bool PseudoSPIcommMetamorphicManipulator::movePseudoSlave(  volatile byte *CURRE
 
 			// if emergency stop button pressed kill motion... not ready yet!
 			
-			motor_step++;
+			// motor_step++; // -> now updated inside updateSingleStepFixedDelay
         }	
 
 		// after motion finished/stopped checks condition and assigns new state
@@ -1364,7 +1434,7 @@ bool PseudoSPIcommMetamorphicManipulator::continueMetaExecutionMaster(int pseudo
 			{
 				result = false;
 			}	
-		Serial.println("edw");
+		//Serial.println("edw");
 		Serial.println(*CURRENT_STATE);
 
 		}while( (!slave_responded_correct_flag) );
@@ -1551,7 +1621,7 @@ void PseudoSPIcommMetamorphicManipulator::readEEPROMsettingsSlave(int pseudoID, 
 } // END FUNCTION: readEEPROMsettingsSlave
 
 // =========================================================================================================== //
-
+/*
 void PseudoSPIcommMetamorphicManipulator::statusLEDblink( int number_of_blinks, unsigned long blink_for_ms)
 {
 	for (int blink_counter = 0; blink_counter < number_of_blinks; blink_counter++)
@@ -1563,9 +1633,9 @@ void PseudoSPIcommMetamorphicManipulator::statusLEDblink( int number_of_blinks, 
 		digitalWrite(statusLED_Pin,LOW);
 	}
 } // END FUNCTION: statusLEDblink
-
+*/
 // =========================================================================================================== //
-
+/*
 void PseudoSPIcommMetamorphicManipulator::txrxLEDSblink( int number_of_blinks, unsigned long blink_for_ms)
 {
 	for (int blink_counter = 0; blink_counter < number_of_blinks; blink_counter++)
@@ -1577,7 +1647,7 @@ void PseudoSPIcommMetamorphicManipulator::txrxLEDSblink( int number_of_blinks, u
 		digitalWrite(TXled_Pin,LOW); digitalWrite(RXled_Pin,LOW);
 	}
 } // END FUNCTION: txrxLEDSblink
-
+*/
 // =========================================================================================================== //
 
 void PseudoSPIcommMetamorphicManipulator::setupEEPROMslave( int newID, float max_angle_limit, float min_angle_limit, float pseudoStepAngle)
@@ -1734,9 +1804,12 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 	bool result;
 
 	byte MOTOR_DIRECTION = *currentDirStatusPseudo;
+
 	int homing_calibration_steps;
 	bool HOMING_PSEUDO = true;
-	unsigned long homing_stepping_delay = 1000;
+	//unsigned long homing_stepping_delay = 1000;
+	unsigned long pseudo_move_led_interval = PSEUDO_HOME_LED_BLINK_INTERVAL;
+	int motor_step = 0;
 
 	Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(HOMING); Serial.println("   ]");          
 
@@ -1745,16 +1818,20 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 
 		while (HOMING_PSEUDO)
 		{    
+			/*
 			//Serial.print("activation_cnt="); Serial.println(activation_cnt);                                                                   
 			time_now_micros = micros();
-
 			// Step motor
 			digitalWrite(stepPin_NANO, HIGH);
 			while(micros() < time_now_micros + homing_stepping_delay){}   	// wait approx. [μs]
 			digitalWrite(stepPin_NANO, LOW);
+			*/
+		    updateSingleStepFixedDelay(motor_step);		// -> executes half step if time has come!
 
-	// next if's are commented since ISR is used
-	/*
+			updateLedState(pseudo_motors_homing_indicator, pseudo_move_led_interval); // [skyblue color]
+
+			// next if's are commented since ISR is used
+			/*
 			if( digitalRead(pseudoLimitSwitch_Pin) == HIGH )
 			{
 				*limitHallActivated = true;
@@ -1764,8 +1841,9 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 			{
 				*homingHallActivated = true;
 			}
-	*/
-			if ( (*limitHallActivated) && (activation_cnt == 1) )
+			*/
+
+			if ( (*limitHallActivated) && (activation_cnt == FIRST_HIT) )
 			{
 				Serial.println("[	 INFO 	 ] 	MIN/MAX LIMIT HALL SENSOR ACTIVATED");
 
@@ -1782,9 +1860,9 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 				for (size_t homing_calibration_steps = 0; homing_calibration_steps < HOMING_CALIBRATION_LIMIT; homing_calibration_steps++)
 				{
 					time_now_micros = micros();
-					digitalWrite(stepPin_NANO, HIGH);
-					while(micros() < time_now_micros + homing_stepping_delay){}   	// wait approx. [μs]
-					digitalWrite(stepPin_NANO, LOW);
+					digitalWrite(_stepPin, HIGH);
+					while(micros() < time_now_micros + FIXED_PSEUDO_STEP_DELAY){}   	// wait approx. [μs]
+					digitalWrite(_stepPin, LOW);
 					//Serial.println(homing_calibration_steps);
 				}
 				
@@ -1794,7 +1872,7 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 
 		}
 
-		Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(STATE_IN_POSITION_STRING); Serial.println("   ]");          
+		//Serial.print("[   PSEUDO:"); Serial.print(_pseudoID); Serial.print("   ]   [   CURRENT STATUS:"); Serial.print(STATE_IN_POSITION_STRING); Serial.println("   ]");          
 
 		*currentAbsPosPseudo 	= 0;
 		*currentAbsPosPseudo_ci = home_ci; 										
@@ -1802,7 +1880,7 @@ bool PseudoSPIcommMetamorphicManipulator::go2HomePositionSlave(volatile byte *CU
 		*currentDirStatusPseudo = MOTOR_DIRECTION;
 
 		EEPROM.update(CP_EEPROM_ADDR, *currentAbsPosPseudo_ci);
-		Serial.println("[INFO]  SAVED	[	CP	] 	TO 	EEPROM");
+		//Serial.println("[INFO]  SAVED	[	CP	] 	TO 	EEPROM");
 
 		*operation_executed = OPERATION_HOME;		// this value will be given to saveEEPROMsettingsSlave to accordingly save CS to EEPROM
 

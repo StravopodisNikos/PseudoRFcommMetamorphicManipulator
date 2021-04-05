@@ -120,7 +120,7 @@ class PseudoRFcommMetamorphicManipulator
 	
 	// Constructor
 	
-	PseudoRFcommMetamorphicManipulator(RF24 RADIO, int pseudoID, int csnPin, int cePin, int misoPin, int mosiPin, int txLedPin, int rxLedPin);
+	PseudoRFcommMetamorphicManipulator(RF24 RADIO, int pseudoID, int csnPin, int cePin, int misoPin, int mosiPin, int greenLedPin, int blueLedPin);
 	
 	// sets MASTER to Tx mode and SLAVE to Rx mode
 	bool setTxMaster(RF24 OBJECT, uint8_t radioPseudoNumber, typeAddresses pseudoAddresses[] );
@@ -151,132 +151,149 @@ class PseudoRFcommMetamorphicManipulator
 	int _cePin;
 	int _misoPin;
 	int _mosiPin;
-	int _txLedPin;
-	int _rxLedPin;
+	int _greenLedPin;
+	int _blueLedPin;
 	
 };
 */
+const unsigned char turn_off_led[] = {0, 0, 0};
+
+typedef bool slave_led_states; 
+
 class PseudoSPIcommMetamorphicManipulator{
 
 	public:
+		
+		// Structs for Master messaging
+		struct masterBlockStruct1{
+		unsigned long   _micros;
+		int             _pseudoID;
+		int             command_sent;      
+		};
 
-	// Structs for Master messaging
-	struct masterBlockStruct1{
-	  unsigned long   _micros;
-	  int             _pseudoID;
-	  int             command_sent;      
-	};
+		struct masterBlockStruct2{
+		unsigned long   _micros;
+		int             _pseudoID;
+		int             state_received;      
+		};
 
-	struct masterBlockStruct2{
-	  unsigned long   _micros;
-	  int             _pseudoID;
-	  int             state_received;      
-	};
+		// Structs for Slaves messaging
+		struct slaveBlockStruct1{
+		unsigned long   _micros;
+		int             _pseudoID;
+		int             command_received;      
+		};
 
-	// Structs for Slaves messaging
-	struct slaveBlockStruct1{
-	  unsigned long   _micros;
-	  int             _pseudoID;
-	  int             command_received;      
-	};
+		struct slaveBlockStruct2{
+		unsigned long   _micros;
+		int             _pseudoID;
+		int             state_sent;      
+		};
 
-	struct slaveBlockStruct2{
-	  unsigned long   _micros;
-	  int             _pseudoID;
-	  int             state_sent;      
-	};
+		// Constructor
+		PseudoSPIcommMetamorphicManipulator(Mode mode, int pseudoID,  int mosiPin, int misoPin, int sckPin,  int redLedPin, int greenLedPin, int blueLedPin, int ssPins[]);
+		
+		void setPseudoLed(const unsigned char *led_indicator);		
 
-	// Constructor
-	PseudoSPIcommMetamorphicManipulator(enum Mode mode, int pseudoID, int statusLedPin,  int mosiPin, int misoPin, int sckPin, int txLedPin, int rxLedPin, int ssPins[]);
-	
-	// Master Demand and Slave Response functions for data structs commands
+		// Master Demand and Slave Response functions for data structs commands
 
-	void constructPacket(aliasPacketReceived *PACKET, int pseudoID, int command_code);
-	
-	void constructEptyPacket(aliasPacketReceived *PACKET);
+		void constructPacket(aliasPacketReceived *PACKET, int pseudoID, int command_code);
+		
+		void constructEptyPacket(aliasPacketReceived *PACKET);
 
-	bool executeTxRxMasterBlock(aliasPacketReceived PACKET, int pseudoID , int ssPins[]);
-	
-    // Master Demand and Slave Response functions for single byte commands
+		bool executeTxRxMasterBlock(aliasPacketReceived PACKET, int pseudoID , int ssPins[]);
+		
+		// Master Demand and Slave Response functions for single byte commands
 
-	/*  *Master*  */
+		/*  *Master*  */
 
-	bool connectPseudoMaster(int pseudoID, int ssPins[]);
-	
-	bool readCurrentStateMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
+		bool connectPseudoMaster(int pseudoID, int ssPins[]);
+		
+		bool readCurrentStateMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
 
-	bool lockPseudoMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
+		bool lockPseudoMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
 
-	bool unlockPseudoMaster(int pseudoID, int ssPins[],volatile byte *CURRENT_STATE );
-	
-	bool setGoalPositionMaster(int pseudoID, int ssPins[], byte * GP, volatile byte *CURRENT_STATE );
+		bool unlockPseudoMaster(int pseudoID, int ssPins[],volatile byte *CURRENT_STATE );
+		
+		bool setGoalPositionMaster(int pseudoID, int ssPins[], byte * GP, volatile byte *CURRENT_STATE );
 
-	bool movePseudoMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
+		bool movePseudoMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
 
-	bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, volatile byte *CURRENT_STATE );
+		bool continueMetaExecutionMaster(int pseudoID, int ssPins[], byte USER_COMMAND, bool *finishMetaMode, volatile byte *CURRENT_STATE );
 
-	bool readCurrentAnatomyMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY);
+		bool readCurrentAnatomyMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY);
 
-	bool setPreHomePositionStateMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
-	
-	bool go2HomePositionMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
-	
-	bool saveEEPROMsettingsMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
-	
-	/*  *Slave*  */
+		bool setPreHomePositionStateMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
+		
+		bool go2HomePositionMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE );
+		
+		bool saveEEPROMsettingsMaster(int pseudoID, int ssPins[], volatile byte *CURRENT_STATE  );
+		
+		/*  *Slave*  */
 
-	void setupEEPROMslave(int newID, float max_angle_limit, float min_angle_limit, float pseudoStepAngle);
+		void setupEEPROMslave(int newID, float max_angle_limit, float min_angle_limit, float pseudoStepAngle);
 
-	bool readCurrentStateSlave(volatile byte *CURRENT_STATE );
-	
-	bool saveCurrentStateSlave(volatile byte *CURRENT_STATE );
+		bool readCurrentStateSlave(volatile byte *CURRENT_STATE );
+		
+		bool saveCurrentStateSlave(volatile byte *CURRENT_STATE );
 
-	byte connectPseudoSlave();
+		byte connectPseudoSlave();
 
-	bool lockPseudoSlave(volatile byte *CURRENT_STATE);
-	
-	bool unlockPseudoSlave(volatile byte *CURRENT_STATE);
+		bool lockPseudoSlave(volatile byte *CURRENT_STATE);
+		
+		bool unlockPseudoSlave(volatile byte *CURRENT_STATE);
 
-	bool setGoalPositionSlave(byte *PSEUDO_GOAL_POSITION, int *RELATIVE_STEPS_TO_MOVE,volatile byte *CURRENT_STATE);
+		bool setGoalPositionSlave(byte *PSEUDO_GOAL_POSITION, int *RELATIVE_STEPS_TO_MOVE,volatile byte *CURRENT_STATE);
 
-	bool setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte * currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte * currentDirStatusPseudo, volatile byte *CURRENT_STATE );
+		bool setGoalPositionSlave2( byte *PSEUDO_GOAL_POSITION, byte * currentAbsPosPseudo_ci, int *RELATIVE_STEPS_TO_MOVE, byte * currentDirStatusPseudo, volatile byte *CURRENT_STATE );
 
-	bool saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo, byte *operation_executed);
+		bool saveEEPROMsettingsSlave(volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci, byte * currentDirStatusPseudo, byte *operation_executed);
 
-	bool repeatMetaSlave(volatile byte *CURRENT_STATE);
+		bool repeatMetaSlave(volatile byte *CURRENT_STATE);
 
-	void readEEPROMsettingsSlave(int pseudoID, volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci,  byte *currentDirStatusPseudo, int *currentAbsPosPseudo);
+		void readEEPROMsettingsSlave(int pseudoID, volatile byte *CURRENT_STATE , byte * currentAbsPosPseudo_ci,  byte *currentDirStatusPseudo, int *currentAbsPosPseudo);
 
-	void statusLEDblink( int number_of_blinks, unsigned long blink_for_ms);
+		//void statusLEDblink( int number_of_blinks, unsigned long blink_for_ms);
 
-	void txrxLEDSblink( int number_of_blinks, unsigned long blink_for_ms);
-	
-	bool movePseudoSlave(volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE, volatile bool *limitHallActivated, byte *operation_executed);
+		//void txrxLEDSblink( int number_of_blinks, unsigned long blink_for_ms);
+		
+		bool movePseudoSlave(volatile byte *CURRENT_STATE , int *RELATIVE_STEPS_TO_MOVE, volatile bool *limitHallActivated, byte *operation_executed);
 
-	bool setPreHomePositionStateSlave(volatile byte *CURRENT_STATE);
+		bool setPreHomePositionStateSlave(volatile byte *CURRENT_STATE);
 
-	bool go2HomePositionSlave(volatile byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated_local, volatile bool *limitHallActivated_local, byte *operation_executed);
+		bool go2HomePositionSlave(volatile byte *CURRENT_STATE , int *currentAbsPosPseudo, byte *currentAbsPosPseudo_ci, byte *currentDirStatusPseudo, volatile bool *homingHallActivated_local, volatile bool *limitHallActivated_local, byte *operation_executed);
 
-	bool readCurrentAnatomySlave( volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY );
+		bool readCurrentAnatomySlave( volatile byte *CURRENT_Ci, volatile byte *CURRENT_Ci_IDENTITY );
 	
 	private:
 
-	int 			_pseudoID;
-	unsigned long   _micros;
+		int 			_pseudoID;
+		unsigned long   _micros;
 
-	int 			_mosiPin;
-	int 			_misoPin;
-	int 			_sckPin;
+		int 			_mosiPin;
+		int 			_misoPin;
+		int 			_sckPin;
+		int 			_stepPin;
+		int 			_greenLedPin;
+		int 			_blueLedPin;
+		int 			_redLedPin;
+		boolean         _STEP_PIN_STATE;
+		slave_led_states _LED_PIN_STATE;
+		unsigned long _last_STEP_STATE_update;             // [micros] 
+		unsigned long _update_STEP_STATE_interval;
+		unsigned long _last_LED_STATE_update;
+		unsigned long _update_LED_STATE_interval;
 
-	int 			_txLedPin;
-	int 			_rxLedPin;
-	int 			_statusLedPin;
+		byte singleByteTransfer(byte packet, unsigned long wait_for_response);
+		
 
-	byte singleByteTransfer(byte packet, unsigned long wait_for_response);
-	
-	void readCurrentPseudoPosition(float *theta_p_current, int *theta_p_current_steps);
+		void updateSingleStepFixedDelay(int &StpPresentPosition);
 
-	bool calculateRelativeStepsToMove(float *theta_p_goal, int *RELATIVE_STEPS_TO_MOVE);
+		void updateLedState(const unsigned char *led_indicator, unsigned long led_state_interval);
+
+		void readCurrentPseudoPosition(float *theta_p_current, int *theta_p_current_steps);
+
+		bool calculateRelativeStepsToMove(float *theta_p_goal, int *RELATIVE_STEPS_TO_MOVE);
 
 };
 
